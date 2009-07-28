@@ -101,82 +101,76 @@ class Game:
         pygame.display.flip()
 
     def handleEvents(self):
-        nextFrame = False
-        frameCount = 0
-
-        while not nextFrame:
-            pygame.event.post(pygame.event.wait())
-            for event in pygame.event.get():
-                if event.type == QUIT:
+        pygame.event.post(pygame.event.wait())
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                self.done = True
+            elif event.type == KEYDOWN:
+                if event.key == K_SPACE:
+                    #ai.Computer(self.board, self, self.turn).findMove()
+                    print self.board.people[self.turn].items
+                elif event.key == K_RIGHT:
+                    self.board.floating_tile.rotate(CLOCKWISE)
+                elif event.key == K_LEFT:
+                    self.board.floating_tile.rotate(COUNTERCLOCKWISE)
+                elif event.key == K_ESCAPE:
                     self.done = True
-                    nextFrame = True
-                elif event.type == NEXTFRAME:
-                    nextFrame = True
-                    frameCount += 1
-                elif event.type == KEYDOWN:
-                    if event.key == K_SPACE:
-                        #ai.Computer(self.board, self, self.turn).findMove()
-                        print self.board.people[self.turn].items
-                    elif event.key == K_RIGHT:
-                        self.board.floating_tile.rotate(CLOCKWISE)
-                    elif event.key == K_LEFT:
-                        self.board.floating_tile.rotate(COUNTERCLOCKWISE)
-                elif event.type == MOUSEBUTTONUP:
-                    if event.button == 4:
-                        self.board.floating_tile.rotate(CLOCKWISE)
-                    elif event.button == 5:
-                        self.board.floating_tile.rotate(COUNTERCLOCKWISE)
-                    elif event.button == 1:
-                        if self.board.floating_tile.sliding > -1 or \
-                           self.board.floating_tile.falling:
-                            continue
+            elif event.type == MOUSEBUTTONUP:
+                if event.button == 4:
+                    self.board.floating_tile.rotate(CLOCKWISE)
+                elif event.button == 5:
+                    self.board.floating_tile.rotate(COUNTERCLOCKWISE)
+                elif event.button == 1:
+                    if self.board.floating_tile.sliding > -1 or \
+                       self.board.floating_tile.falling:
+                        continue
 
-                        (column, row) = board.findLocation(event.pos)
-                        #tiles = self.board.board
-                        tile = self.board.getTile((column, row))
+                    (column, row) = board.findLocation(event.pos)
+                    #tiles = self.board.board
+                    tile = self.board.getTile((column, row))
 
-                        if not tile:
-                            self.addFloatingTileToBoard()
+                    if not tile:
+                        self.addFloatingTileToBoard()
 
-                            if column == -1:
-                                if self.board.moveRow(row, EAST):
-                                    self.removeArrows()
-                            elif column == self.board.getTotalColumns():
-                                if self.board.moveRow(row, WEST):
-                                    self.removeArrows()
-                            elif row == -1:
-                                if self.board.moveColumn(column, SOUTH):
-                                    self.removeArrows()
-                            elif row == self.board.getTotalRows():
-                                if self.board.moveColumn(column, NORTH):
-                                    self.removeArrows()
-
-                            self.removeFloatingTileFromBoard()
-
-                        elif tile:
-                            startPoint = self.board.people[self.turn].location
-                            endPoint = (tile.column, tile.row)
-                            if startPoint != endPoint:
-                                t = traverse.TraversalGraph(self.board)
-                                if t.findPath(startPoint, endPoint):
-                                    self.board.people[self.turn].moveToTile(
-                                        self.board, t, endPoint)
-                                    self.turn += 1
-                                    if self.turn >= self.totalPlayers:
-                                        self.turn = PLAYER1
-
-                        else:
-                            if self.board.floating_tile.trackMouse:
-                                self.board.floating_tile.trackMouse = False
+                        if column == -1:
+                            if self.board.moveRow(row, EAST):
                                 self.removeArrows()
-                            else:
-                                self.board.floating_tile.trackMouse = True
-                                self.addArrows()
-                                lastMove = self.board.getLastMove()
-                                if lastMove:
-                                    self.removeArrowAtLocation(
-                                        findArrowLocation(lastMove))
-                           # self.board.floating_tile.trackMouse = True
+                        elif column == self.board.getTotalColumns():
+                            if self.board.moveRow(row, WEST):
+                                self.removeArrows()
+                        elif row == -1:
+                            if self.board.moveColumn(column, SOUTH):
+                                self.removeArrows()
+                        elif row == self.board.getTotalRows():
+                            if self.board.moveColumn(column, NORTH):
+                                self.removeArrows()
+
+                        self.removeFloatingTileFromBoard()
+
+                    elif tile:
+                        startPoint = self.board.people[self.turn].location
+                        endPoint = (tile.column, tile.row)
+                        if startPoint != endPoint:
+                            t = traverse.TraversalGraph(self.board)
+                            if t.findPath(startPoint, endPoint):
+                                self.board.people[self.turn].moveToTile(
+                                    self.board, t, endPoint)
+                                self.turn += 1
+                                if self.turn >= self.totalPlayers:
+                                    self.turn = PLAYER1
+
+                    else:
+                        if self.board.floating_tile.trackMouse:
+                            self.board.floating_tile.trackMouse = False
+                            self.removeArrows()
+                        else:
+                            self.board.floating_tile.trackMouse = True
+                            self.addArrows()
+                            lastMove = self.board.getLastMove()
+                            if lastMove:
+                                self.removeArrowAtLocation(
+                                    findArrowLocation(lastMove))
+                       # self.board.floating_tile.trackMouse = True
 
     def addFloatingTileToBoard(self):
         self.floating_tile_sprite.remove(self.board.floating_tile)

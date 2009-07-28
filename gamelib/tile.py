@@ -98,17 +98,17 @@ class Tile(animation.Animation):
         else:
             return False
 
-    def has_person(self, person):
-        if self.people >> person & 1:
-            return True
-        else:
-            return False
-
-    def add_person(self, person):
-        self.people = self.people | (1 << person)
-
-    def remove_person(self, person):
-       self.people = self.people ^ (1 << person)
+#    def has_person(self, person):
+#        if self.people >> person & 1:
+#            return True
+#        else:
+#            return False
+#
+#    def add_person(self, person):
+#        self.people = self.people | (1 << person)
+#
+#    def remove_person(self, person):
+#       self.people = self.people ^ (1 << person)
 
     def rotateTile(self, turns=1, direction=CLOCKWISE):
         print "direction = %d" % direction

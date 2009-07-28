@@ -11,7 +11,8 @@ class Board:
         self.lastMove = (None, None)
         self.createBoard()
 
-    def createBoard(self, totalRows=ROWS, totalColumns=COLUMNS):
+    def createBoard(self, totalRows=ROWS, totalColumns=COLUMNS,
+                          totalPlayers=2):
         board = []
         tile_i = 0
         tile_l = 0
@@ -40,7 +41,7 @@ class Board:
         self.floating_tile = tile.Tile(type=random.randint(0, 2), 
             rotation=0, column=-1, row=-1, resting=True)
 
-        board[0][0].add_person(PLAYER1)
+        #board[0][0].add_person(PLAYER1)
         self.board = board
 
         self.sliding = 0
