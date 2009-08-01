@@ -33,6 +33,18 @@ class Tile(object):
     def __init__(self, tileType, tileRotation):
         self.setTypeAndRotation(tileType, tileRotation)
 
+    def rotateClockwise(self):
+        if self.tileRotation == 3:
+            self.tileRotation = 0
+        else:
+            self.tileRotation += 1
+
+    def rotateCounterClockwise(self):
+        if self.tileRotation == 0:
+            self.tileRotation = 3
+        else:
+            self.tileRotation -= 1
+
     def setTypeAndRotation(self, tileType, tileRotation):
         self.tileType = tileType
         self.tileRotation = tileRotation
@@ -40,6 +52,35 @@ class Tile(object):
     def hasDir(self, direction):
         directionKey = (self.tileType, self.tileRotation)
         return direction in self.tileDirections[directionKey]
+
+    def asciiTile(self):
+        buf = ''
+        if self.hasDir(NORTH):
+            buf = buf + "   |  "
+        else:
+            buf = buf + "      "
+        buf += '\n'
+
+        if self.hasDir(WEST):
+            buf = buf + " --"
+        else:
+            buf = buf + "   "
+
+        buf = buf + "+"
+
+        if self.hasDir(EAST):
+            buf = buf + "--"
+        else:
+            buf = buf + "  "
+        buf = buf + "\n"
+
+        if self.hasDir(SOUTH):
+            buf = buf + "   |  "
+        else:
+            buf = buf + "      "
+        buf = buf + "\n"
+
+        return buf
 
 class BoardMovementException(Exception):
     pass
@@ -71,6 +112,9 @@ class Board(object):
         self.board[rows-1][columns-1].setTypeAndRotation(TILE_L, 2)
 
         self.floatingTile = Tile(randomTileType(), 0)
+
+    def getFloatingTile(self):
+        return self.floatingTile
 
     def moveRow(self, row, direction):
 
@@ -158,6 +202,14 @@ class Board(object):
 if __name__ == '__main__':
     b = Board()
     print b.asciiBoard()
+    ft = b.getFloatingTile()
+    print ft.asciiTile()
+    ft.rotateClockwise()
+    print ft.asciiTile()
+
+    ft.rotateClockwise()
+    print ft.asciiTile()
+
     b.moveColumn(1, SOUTH)
     print b.asciiBoard()
     b.moveColumn(1, SOUTH)
