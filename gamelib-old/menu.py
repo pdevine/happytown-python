@@ -1,5 +1,7 @@
 import pygame
 import util
+import board
+import game
 
 from options import *
 
@@ -8,7 +10,7 @@ class Title(object):
         self.bg = bg
         titleFont = util.loadFont("depraved.ttf", 160)
 
-        self.image = titleFont.render('Truva', True, (0, 0, 0))
+        self.image = titleFont.render('Truva', True, (255, 0, 0))
         self.rect = self.image.get_rect()
 
         self.rect.centerx = self.bg.get_rect().centerx
@@ -37,20 +39,17 @@ class Menu:
 
     def __init__(self, screen):
         self.screen = screen
+        self.clock = pygame.time.Clock()
 
         self.done = False
-        #self.font = util.loadFont("Base 02.ttf", 58)
         self.font = util.loadFont("PlAGuEdEaTH_0.ttf", 68)
-
-        #self.bg = pygame.Surface(screen.get_size())
-        #self.bg = self.bg.convert()
-        #self.bg.fill((52, 56, 91))
 
         self.menuSelect = 0
 
         self.title = Title(self.screen)
 
-        self.clock = pygame.time.Clock()
+        self.board = board.Board(9, 12)
+        self.tiles = game.getTileSprites(self.board)
 
     def run(self):
         while True:
@@ -64,7 +63,7 @@ class Menu:
             self.title.update(tick)
             self.screen.fill((52, 56, 91))
 
-            #self.screen.blit(self.bg, self.screen.get_rect())
+            self.tiles.draw(self.screen)
 
             self.title.draw()
 

@@ -59,7 +59,7 @@ class Game:
 
     def run(self):
         while not self.done:
-            tiles = self.board
+            self.handleEvents()
 
             for arrow in self.arrows:
                 arrow.update()
@@ -80,7 +80,6 @@ class Game:
 
 
             self.draw()
-            self.handleEvents()
 
     def draw(self):
         # blit + sprite draw stuff here
@@ -101,7 +100,6 @@ class Game:
         pygame.display.flip()
 
     def handleEvents(self):
-        pygame.event.post(pygame.event.wait())
         for event in pygame.event.get():
             if event.type == QUIT:
                 self.done = True
@@ -204,4 +202,13 @@ def findArrowLocation(lastMove):
     elif direction == WEST:
         return (-1, position)
     return None
+
+def getTileSprites(board):
+    tileSprites = pygame.sprite.Group()
+
+    for row in board.getBoard():
+        for tile in row:
+            tileSprites.add(tile)
+
+    return tileSprites
 

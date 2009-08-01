@@ -1,278 +1,164 @@
-import tile
 import random
-import string
-import person
-import item
 
-from options import *
+ROWS = 7
+COLUMNS = 7
 
-class Board:
-    def __init__(self):
-        self.lastMove = (None, None)
-        self.createBoard()
+TILE_I = 1
+TILE_L = 2
+TILE_T = 3
 
-    def createBoard(self, totalRows=ROWS, totalColumns=COLUMNS,
-                          totalPlayers=2):
-        board = []
-        tile_i = 0
-        tile_l = 0
-        tile_t = 0
+NORTH = 1
+EAST = 2
+SOUTH = 3
+WEST = 4
 
-        for row in range(totalRows):
-            boardTiles = []
-            for column in range(totalColumns):
-                type = tile.TILE_L
-                if row == 0 and column == 0:
-                    rotation = 1
-                elif row == 0 and column == totalColumns-1:
-                    rotation = 2
-                elif row == totalRows-1 and column == totalColumns-1:
-                    rotation = 3
-                elif row == totalRows-1 and column == 0:
-                    rotation = 0
-                else:
-                    type = random.randint(0, 2)
-                    rotation = random.randint(0, 3)
+class Tile(object):
+    # dictionary of tile type and rotations to the direction
+    # players can enter/leave the tile
+    tileDirections = {
+        (TILE_L, 0) : (EAST, SOUTH),
+        (TILE_L, 1) : (SOUTH, WEST),
+        (TILE_L, 2) : (WEST, NORTH),
+        (TILE_L, 3) : (NORTH, EAST),
+        (TILE_I, 0) : (NORTH, SOUTH),
+        (TILE_I, 1) : (EAST, WEST),
+        (TILE_I, 2) : (NORTH, SOUTH),
+        (TILE_I, 3) : (EAST, WEST),
+        (TILE_T, 0) : (EAST, SOUTH, WEST),
+        (TILE_T, 1) : (NORTH, EAST, SOUTH),
+        (TILE_T, 2) : (NORTH, EAST, WEST),
+        (TILE_T, 3) : (NORTH, EAST, SOUTH),
+    }
 
-                boardTiles.append(tile.Tile(type=type, rotation=rotation,
-                    column=column, row=row))
-            board.append(boardTiles)
+    def __init__(self, tileType, tileRotation):
+        self.setTypeAndRotation(tileType, tileRotation)
 
-        self.floating_tile = tile.Tile(type=random.randint(0, 2), 
-            rotation=0, column=-1, row=-1, resting=True)
+    def setTypeAndRotation(self, tileType, tileRotation):
+        self.tileType = tileType
+        self.tileRotation = tileRotation
 
-        #board[0][0].add_person(PLAYER1)
-        self.board = board
+    def hasDir(self, direction):
+        directionKey = (self.tileType, self.tileRotation)
+        return direction in self.tileDirections[directionKey]
 
-        self.sliding = 0
+class BoardMovementException(Exception):
+    pass
 
-        self.people = []
-        self.people.append(person.Person(board=self, items=[1, 2, 3]))
-        self.people.append(person.Person(board=self, file="person2.png",
-                               location=(6, 6), items=[4, 5, 6]))
+class Board(object):
+    def __init__(self, rows=ROWS, columns=COLUMNS):
+        self.createBoard(rows, columns, 0)
 
+    def createBoard(self, rows, columns, players):
+        self.rows = rows
+        self.columns = columns
+        self.players = players
+        self.board = []
 
-        board[0][0].home = PLAYER1
-        board[0][COLUMNS-1].home = PLAYER2
-        board[ROWS-1][0].home = PLAYER3
-        board[ROWS-1][COLUMNS-1].home = PLAYER4
+        def randomTileType():
+            return random.choice([TILE_I, TILE_L, TILE_T])
 
-        mObjects = range(M_OBJECTS)
-        mObj = mObjects.pop()
+        for row in range(rows):
+            tempRow = []
+            for column in range(columns):
+                tileType = randomTileType()
+                tileRotation = random.randint(0, 3)
+                tempRow.append(Tile(tileType, tileRotation))
+            self.board.append(tempRow)
 
-        while mObjects:
-            row = random.randint(0, ROWS-1)
-            column = random.randint(0, COLUMNS-1)
-            if not board[row][column].item and board[row][column].home == -1:
-                board[row][column].item = item.Item(offset=mObj,
-                    location=(column, row))
-                mObj = mObjects.pop()
+        self.board[0][0].setTypeAndRotation(TILE_L, 0)
+        self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
+        self.board[rows-1][0].setTypeAndRotation(TILE_L, 3)
+        self.board[rows-1][columns-1].setTypeAndRotation(TILE_L, 2)
+
+        self.floatingTile = Tile(randomTileType(), 0)
 
     def moveRow(self, row, direction):
-        # don't move the corners
-        if row == 0 or row == self.getTotalRows()-1:
-            return False
 
-        self.floating_tile.trackMouse = False
+        if direction not in [EAST, WEST]:
+            raise BoardMovementException(
+                "Tried to move board in the wrong direction")
+        
+
+        if row == 0 or row == self.rows - 1:
+            raise BoardMovementException(
+                "Can't move the corners")
 
         if direction == WEST:
-            self.animateRow(self.people, row, direction)
-
             newFloatingTile = self.board[row][0]
-            newFloatingTile.setTile(sliding=WEST)
-
             self.board[row][0:1] = []
-
-            newTile = self.floating_tile
-            tile.setItemOnTile(newFloatingTile, newTile)
-            newTile.setTile(location=(self.getTotalColumns(), row),
-                            sliding=WEST, realign=True)
-
-            self.board[row].append(newTile)
+            self.board[row].append(self.floatingTile)
 
         elif direction == EAST:
-            self.animateRow(self.people, row, direction)
-
-            newFloatingTile = self.board[row][self.getTotalColumns()-1]
-            newFloatingTile.setTile(sliding=EAST)
- 
+            newFloatingTile = self.board[row][self.columns-1]
             self.board[row] = self.board[row][:-1]
+            self.board[row][0:0] = [self.floatingTile]
 
-            newTile = self.floating_tile
-            tile.setItemOnTile(newFloatingTile, newTile)
-            newTile.setTile(location=(-1, row), sliding=EAST, realign=True)
-
-            self.board[row][0:0] = [newTile]
-
-        else:
-            return False
-
-        self.floating_tile = newFloatingTile
-        self.lastMove = (row, direction)
-        self.updateBoard()
-        return True
+        self.floatingTile = newFloatingTile
 
     def moveColumn(self, column, direction):
-        # this function should probably be replaced once numpy is more
-        # prevalent .. or not.
 
-        # don't move the corners
-        if column == 0 or column == self.getTotalColumns()-1:
-            return False
+        if direction not in [NORTH, SOUTH]:
+            raise BoardMovementException(
+                "Tried to move board in the wrong direction")
 
-        self.floating_tile.trackMouse = False
+        if column == 0 or column == self.columns - 1:
+            raise BoardMovementException(
+                "Can't move the corners")
 
         if direction == NORTH:
             newFloatingTile = self.board[0][column]
-            newFloatingTile.setTile(sliding=NORTH)
 
-            for row in range(self.getTotalRows()-1):
+            for row in range(self.rows-1):
                 self.board[row][column] = self.board[row+1][column]
 
-            self.animateColumn(self.people, column, NORTH)
-
-            newTile = self.floating_tile
-            tile.setItemOnTile(newFloatingTile, newTile)
-            newTile.setTile(location=(column, self.getTotalRows()),
-                sliding=NORTH, realign=True)
-
-            self.board[self.getTotalRows()-1][column] = newTile
+            self.board[self.rows-1][column] = self.floatingTile
 
         elif direction == SOUTH:
-            newFloatingTile = self.board[self.getTotalRows()-1][column]
-            newFloatingTile.setTile(sliding=SOUTH)
+            newFloatingTile = self.board[self.rows-1][column]
 
-            # yay for having to make a new copy in mem
-            for row in range(1, self.getTotalRows())[::-1]:
+            for row in range(self.rows-1, 0, -1):
                 self.board[row][column] = self.board[row-1][column]
 
-            self.animateColumn(self.people, column, SOUTH)
+            self.board[0][column] = self.floatingTile
 
-            newTile = self.floating_tile
-            tile.setItemOnTile(newFloatingTile, newTile)
-            newTile.setTile(location=(column, -1), sliding=SOUTH, realign=1)
+        self.floatingTile = newFloatingTile
 
-            self.board[0][column] = newTile
 
-        else:
-            return False
+    def asciiBoard(self):
+        buf = ''
 
-        self.floating_tile = newFloatingTile
-        self.lastMove = (column, direction)
-        self.updateBoard()
-        return True
-
-    def getFloatingTile(self):
-        return self.floating_tile
-
-    def getBoard(self):
-        return self.board
-
-    def updateBoard(self):
-        for row in range(self.getTotalRows()):
-            for column in range(self.getTotalColumns()):
-                self.board[row][column].column = column
-                self.board[row][column].row = row
-
-    def getTileSize(self):
-        tile = self.getTile((0,0))
-        return (tile.image.get_width(), tile.image.get_height())
-
-    def getTile(self, location):
-        (column, row) = location
-        if row > -1 and row < self.getTotalRows() and \
-           column > -1 and column < self.getTotalColumns():
-            return self.board[location[ROW]][location[COLUMN]]
-        return None
-
-    def getTileAtLocation(self, location):
-        return self.getTile(findLocation(location))
-
-    def getLastMove(self):
-        return self.lastMove
-
-    def printBoard(self, tiles=None):
-        if not tiles:
-            tiles = self.board
-        buf = ""
-
-        items = list(string.ascii_uppercase)
-
-        for row in tiles:
+        for row in self.board:
             for tile in row:
-                if tile.has_dir(NORTH):
-                    if tile.people:
-                        buf = buf + "  %s|  " % (string.hexdigits[tile.people])
-                    else:
-                        buf = buf + "   |  "
+                if tile.hasDir(NORTH):
+                    buf = buf + "   |  "
                 else:
-                    if tile.people:
-                        buf = buf + "  %s   " % (string.hexdigits[tile.people])
-                    else:
-                        buf = buf + "      "
+                    buf = buf + "      "
             buf = buf + "\n"
             for tile in row:
-                if tile.has_dir(WEST):
+                if tile.hasDir(WEST):
                     buf = buf + " --"
                 else:
                     buf = buf + "   "
 
-                if tile.item:
-                    buf = buf + items[tile.item.offset-1]
-                else:
-                    buf = buf + "+"
+                buf = buf + "+"
 
-                if tile.has_dir(EAST):
+                if tile.hasDir(EAST):
                     buf = buf + "--"
                 else:
                     buf = buf + "  "
             buf = buf + "\n"
             for tile in row:
-                if tile.has_dir(SOUTH):
+                if tile.hasDir(SOUTH):
                     buf = buf + "   |  "
                 else:
                     buf = buf + "      "
             buf = buf + "\n"
-        print buf
+        return buf
 
-    def animateRow(self, people, row, direction):
-        for person in people:
-            if person.location[1] == row:
-                person.sliding = direction
-
-        for tile in self.board[row]:
-            tile.sliding = direction
-            if tile.item:
-                tile.item.sliding = direction
-
-    def animateColumn(self, people, column, direction):
-        for person in people:
-            if person.location[0] == column:
-                person.sliding = direction
-
-        for row in range(self.getTotalRows()):
-            tile = self.board[row][column]
-            tile.sliding = direction
-            if tile.item:
-                tile.item.sliding = direction
-
-    def getTotalRows(self):
-        return len(self.board)
-
-    def getTotalColumns(self):
-        return len(self.board[0])
-
-def findLocation(location, width=82, height=82):
-    (x, y) = location
-
-    column = (x - TILE_X_OFFSET) / width
-    row = (y - TILE_Y_OFFSET) / height
-
-    return (column, row)
-
-def findPosition(location, width=82, height=82):
-    return (location[0] * (width - 1) + TILE_X_OFFSET + width / 2,
-        location[1] * (height - 1) + TILE_Y_OFFSET + height / 2)
-
-if __name__ == "__main__":
-    Board()
+if __name__ == '__main__':
+    b = Board()
+    print b.asciiBoard()
+    b.moveColumn(1, SOUTH)
+    print b.asciiBoard()
+    b.moveColumn(1, SOUTH)
+    print b.asciiBoard()
