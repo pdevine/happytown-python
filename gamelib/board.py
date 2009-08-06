@@ -135,10 +135,10 @@ class Board(object):
                 tempRow.append(Tile(tileType, tileRotation))
             self.board.append(tempRow)
 
-        setPlayerHomeTile(0, 0, TILE_L, 0, 1)
-        setPlayerHomeTile(0, columns-1, TILE_L, 1, 2)
-        setPlayerHomeTile(rows-1, 0, TILE_L, 3, 3)
-        setPlayerHomeTile(rows-1, columns-1, TILE_L, 2, 4)
+        self.setPlayerHomeTile(0, 0, TILE_L, 0, 1)
+        self.setPlayerHomeTile(0, columns-1, TILE_L, 1, 2)
+        self.setPlayerHomeTile(rows-1, 0, TILE_L, 3, 3)
+        self.setPlayerHomeTile(rows-1, columns-1, TILE_L, 2, 4)
 
         #self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
         #self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
@@ -147,7 +147,7 @@ class Board(object):
 
         self.floatingTile = Tile(randomTileType(), 0)
 
-    def setPlayerHomeTile(row, column, tile, rotation, player):
+    def setPlayerHomeTile(self, row, column, tile, rotation, player):
         self.board[row][column].setTypeAndRotation(tile, rotation)
         self.board[row][column].playerHome = player
 
