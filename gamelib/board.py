@@ -1,4 +1,5 @@
 import random
+import traverse
 
 ROWS = 7
 COLUMNS = 7
@@ -9,29 +10,31 @@ TILE_T = 3
 
 NORTH = 1
 EAST = 2
-SOUTH = 3
-WEST = 4
+SOUTH = 4
+WEST = 8
 
 class Tile(object):
     # dictionary of tile type and rotations to the direction
     # players can enter/leave the tile
     tileDirections = {
-        (TILE_L, 0) : (EAST, SOUTH),
-        (TILE_L, 1) : (SOUTH, WEST),
-        (TILE_L, 2) : (WEST, NORTH),
-        (TILE_L, 3) : (NORTH, EAST),
-        (TILE_I, 0) : (NORTH, SOUTH),
-        (TILE_I, 1) : (EAST, WEST),
-        (TILE_I, 2) : (NORTH, SOUTH),
-        (TILE_I, 3) : (EAST, WEST),
-        (TILE_T, 0) : (EAST, SOUTH, WEST),
-        (TILE_T, 1) : (NORTH, EAST, SOUTH),
-        (TILE_T, 2) : (NORTH, EAST, WEST),
-        (TILE_T, 3) : (NORTH, EAST, SOUTH),
+        (TILE_L, 0) : EAST | SOUTH,
+        (TILE_L, 1) : SOUTH | WEST,
+        (TILE_L, 2) : WEST | NORTH,
+        (TILE_L, 3) : NORTH | EAST,
+        (TILE_I, 0) : NORTH | SOUTH,
+        (TILE_I, 1) : EAST | WEST,
+        (TILE_I, 2) : NORTH | SOUTH,
+        (TILE_I, 3) : EAST | WEST,
+        (TILE_T, 0) : EAST | SOUTH | WEST,
+        (TILE_T, 1) : NORTH | EAST | SOUTH,
+        (TILE_T, 2) : NORTH | EAST | WEST,
+        (TILE_T, 3) : NORTH | EAST | SOUTH,
     }
 
-    def __init__(self, tileType, tileRotation):
+    def __init__(self, tileType, tileRotation, playerHome=0):
         self.setTypeAndRotation(tileType, tileRotation)
+        self.playerHome = playerHome
+        self.players = []
 
     def rotateClockwise(self):
         if self.tileRotation == 3:
@@ -51,7 +54,10 @@ class Tile(object):
 
     def hasDir(self, direction):
         directionKey = (self.tileType, self.tileRotation)
-        return direction in self.tileDirections[directionKey]
+        return direction & self.tileDirections[directionKey]
+
+    def hasPlayer(self, player):
+        return player in self.players
 
     def asciiTile(self):
         buf = ''
@@ -82,18 +88,41 @@ class Tile(object):
 
         return buf
 
-class BoardMovementException(Exception):
+class Player(object):
+    def __init__(self, playerNumber):
+        self.playerNumber = playerNumber
+
+        self.name = "Player %d" % playerNumber
+
+class BoardMovementError(Exception):
+    pass
+
+class BoardCreationError(Exception):
+    pass
+
+class PlayerMovementError(Exception):
     pass
 
 class Board(object):
     def __init__(self, rows=ROWS, columns=COLUMNS):
-        self.createBoard(rows, columns, 0)
+        self.createBoard(rows, columns, players=2)
 
     def createBoard(self, rows, columns, players):
         self.rows = rows
         self.columns = columns
-        self.players = players
         self.board = []
+        self.players = []
+
+        if players < 2:
+            raise BoardCreationError(
+                "Must have 2 or more players to start a game")
+
+        # players are enumerated from 1
+        for player in range(1, players+1):
+            self.players.append(Player(player))
+
+        self.playerTurn = 1
+        self.floatingTilePushed = False
 
         def randomTileType():
             return random.choice([TILE_I, TILE_L, TILE_T])
@@ -106,22 +135,35 @@ class Board(object):
                 tempRow.append(Tile(tileType, tileRotation))
             self.board.append(tempRow)
 
-        self.board[0][0].setTypeAndRotation(TILE_L, 0)
-        self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
-        self.board[rows-1][0].setTypeAndRotation(TILE_L, 3)
-        self.board[rows-1][columns-1].setTypeAndRotation(TILE_L, 2)
+        setPlayerHomeTile(0, 0, TILE_L, 0, 1)
+        setPlayerHomeTile(0, columns-1, TILE_L, 1, 2)
+        setPlayerHomeTile(rows-1, 0, TILE_L, 3, 3)
+        setPlayerHomeTile(rows-1, columns-1, TILE_L, 2, 4)
+
+        #self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
+        #self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
+        #self.board[rows-1][0].setTypeAndRotation(TILE_L, 3)
+        #self.board[rows-1][columns-1].setTypeAndRotation(TILE_L, 2)
 
         self.floatingTile = Tile(randomTileType(), 0)
+
+    def setPlayerHomeTile(row, column, tile, rotation, player):
+        self.board[row][column].setTypeAndRotation(tile, rotation)
+        self.board[row][column].playerHome = player
 
     def getFloatingTile(self):
         return self.floatingTile
 
     def moveRow(self, row, direction):
+        '''Shift a row on the board horizontally'''
+
+        if self.floatingTilePushed:
+            raise BoardMovementError(
+                "Floating tile already pushed")
 
         if direction not in [EAST, WEST]:
-            raise BoardMovementException(
+            raise BoardMovementError(
                 "Tried to move board in the wrong direction")
-        
 
         if row == 0 or row == self.rows - 1:
             raise BoardMovementException(
@@ -139,7 +181,14 @@ class Board(object):
 
         self.floatingTile = newFloatingTile
 
+        self.floatingTilePushed = True
+
     def moveColumn(self, column, direction):
+        '''Shift a column on the board vertically'''
+
+        if self.floatingTilePushed:
+            raise BoardMovementError(
+                "Floating tile already pushed")
 
         if direction not in [NORTH, SOUTH]:
             raise BoardMovementException(
@@ -166,6 +215,8 @@ class Board(object):
             self.board[0][column] = self.floatingTile
 
         self.floatingTile = newFloatingTile
+
+        self.floatingTilePushed = True
 
 
     def asciiBoard(self):
@@ -198,6 +249,13 @@ class Board(object):
                     buf = buf + "      "
             buf = buf + "\n"
         return buf
+
+    def movePlayer(self, player):
+        if player != self.playerTurn:
+            raise PlayerMovementError(
+                "Player moved out of turn")
+
+        traverseGraph = traverse.TraversalGraph(self)
 
 if __name__ == '__main__':
     b = Board()
