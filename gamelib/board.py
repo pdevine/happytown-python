@@ -1,6 +1,9 @@
 import random
 import traverse
 
+ROW = 0
+COLUMN = 1
+
 ROWS = 7
 COLUMNS = 7
 
@@ -33,8 +36,8 @@ class Tile(object):
 
     def __init__(self, tileType, tileRotation, playerHome=0):
         self.setTypeAndRotation(tileType, tileRotation)
+
         self.playerHome = playerHome
-        self.players = []
 
     def rotateClockwise(self):
         if self.tileRotation == 3:
@@ -55,9 +58,6 @@ class Tile(object):
     def hasDir(self, direction):
         directionKey = (self.tileType, self.tileRotation)
         return direction & self.tileDirections[directionKey]
-
-    def hasPlayer(self, player):
-        return player in self.players
 
     def asciiTile(self):
         buf = ''
@@ -94,10 +94,32 @@ class Player(object):
 
         self.name = "Player %d" % playerNumber
 
+        self.location = (None, None)
+
+    def getRow(self):
+        return self.location[ROW]
+
+    def setRow(self, row):
+        self.location = (row, self.getColumn())
+
+    row = property(getRow, setRow)
+
+    def getColumn(self):
+        return self.location[COLUMN]
+
+    def setColumn(self, column):
+        self.location = (self.getRow(), column)
+
+    column = property(getColumn, setColumn)
+
+
 class BoardMovementError(Exception):
     pass
 
 class BoardCreationError(Exception):
+    pass
+
+class PlayerTurnError(Exception):
     pass
 
 class PlayerMovementError(Exception):
@@ -140,22 +162,25 @@ class Board(object):
         self.setPlayerHomeTile(rows-1, 0, TILE_L, 3, 3)
         self.setPlayerHomeTile(rows-1, columns-1, TILE_L, 2, 4)
 
-        #self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
-        #self.board[0][columns-1].setTypeAndRotation(TILE_L, 1)
-        #self.board[rows-1][0].setTypeAndRotation(TILE_L, 3)
-        #self.board[rows-1][columns-1].setTypeAndRotation(TILE_L, 2)
-
         self.floatingTile = Tile(randomTileType(), 0)
 
     def setPlayerHomeTile(self, row, column, tile, rotation, player):
         self.board[row][column].setTypeAndRotation(tile, rotation)
         self.board[row][column].playerHome = player
 
+        # set the start location for each player
+        if player <= len(self.players):
+            self.players[player-1].location = (row, column)
+
     def getFloatingTile(self):
         return self.floatingTile
 
-    def moveRow(self, row, direction):
+    def moveRow(self, player, row, direction):
         '''Shift a row on the board horizontally'''
+
+        if player != self.playerTurn:
+            raise BoardMovementError(
+                "Player tried to move a row out of turn")
 
         if self.floatingTilePushed:
             raise BoardMovementError(
@@ -183,8 +208,12 @@ class Board(object):
 
         self.floatingTilePushed = True
 
-    def moveColumn(self, column, direction):
+    def moveColumn(self, player, column, direction):
         '''Shift a column on the board vertically'''
+
+        if player != self.playerTurn:
+            raise BoardMovementError(
+                "Player tried to move a column out of turn")
 
         if self.floatingTilePushed:
             raise BoardMovementError(
@@ -218,6 +247,17 @@ class Board(object):
 
         self.floatingTilePushed = True
 
+    def endTurn(self, player):
+        if player != self.playerTurn:
+            raise PlayerTurnError(
+                "Player tried to end turn out of turn")
+
+        if player >= len(self.players):
+            self.playerTurn = 0
+        else:
+            self.playerTurn += 1
+
+        self.floatingTilePushed = False
 
     def asciiBoard(self):
         buf = ''
@@ -250,12 +290,25 @@ class Board(object):
             buf = buf + "\n"
         return buf
 
-    def movePlayer(self, player):
+    def movePlayer(self, player, row, column):
         if player != self.playerTurn:
             raise PlayerMovementError(
                 "Player moved out of turn")
 
+        if not self.floatingTilePushed:
+            raise PlayerMovementError(
+                "Player tried moving before pushing the floating tile")
+
         traverseGraph = traverse.TraversalGraph(self)
+
+        startLocation = self.players[player-1].location
+
+        if traverseGraph.findPath(startLocation, (row, column)):
+            self.players[player-1].location = (row, column)
+        else:
+            raise PlayerMovementError(
+                "Can't move player from %s to (%d, %d)" % \
+                    (str(startLocation), row, column))
 
 if __name__ == '__main__':
     b = Board()
@@ -268,7 +321,12 @@ if __name__ == '__main__':
     ft.rotateClockwise()
     print ft.asciiTile()
 
-    b.moveColumn(1, SOUTH)
+    b.moveColumn(1, 1, SOUTH)
     print b.asciiBoard()
-    b.moveColumn(1, SOUTH)
+
+    b.movePlayer(1, 0, 1)
+
+    b.endTurn(1)
+
+    b.moveColumn(2, 1, SOUTH)
     print b.asciiBoard()

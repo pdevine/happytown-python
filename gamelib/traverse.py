@@ -41,22 +41,22 @@ class TraversalGraph:
                     self.addEdge(vertex2, vertex1)
 
     def findPath(self, start, end):
-        return self.findShortestPath(self.t_graph, start, end)
+        return findShortestPath(self.t_graph, start, end)
 
-    def findShortestPath(self, graph, start, end, path=[]):
-        path = path + [start]
-        if start == end:
-            return path
-        if not graph.has_key(start):
-            return None
-        shortest = None
-        for vertex in graph[start]:
-            if vertex not in path:
-                newpath = self.findShortestPath(graph, vertex, end, path)
-                if newpath:
-                    if not shortest or len(newpath) < len(shortest):
-                        shortest = newpath
-        return shortest
+def findShortestPath(graph, start, end, path=[]):
+    path = path + [start]
+    if start == end:
+        return path
+    if not graph.has_key(start):
+        return None
+    shortest = None
+    for vertex in graph[start]:
+        if vertex not in path:
+            newpath = findShortestPath(graph, vertex, end, path)
+            if newpath:
+                if not shortest or len(newpath) < len(shortest):
+                    shortest = newpath
+    return shortest
 
 
 if __name__ == "__main__":
