@@ -1,5 +1,4 @@
 import random
-import traverse
 
 ROW = 0
 COLUMN = 1
@@ -16,10 +15,17 @@ EAST = 2
 SOUTH = 4
 WEST = 8
 
+PLAYER_1 = 1
+PLAYER_2 = 2
+PLAYER_3 = 4
+PLAYER_4 = 8
+
+import traverse
+
 class Tile(object):
     # dictionary of tile type and rotations to the direction
     # players can enter/leave the tile
-    tileDirections = {
+    tileToDirections = {
         (TILE_L, 0) : EAST | SOUTH,
         (TILE_L, 1) : SOUTH | WEST,
         (TILE_L, 2) : WEST | NORTH,
@@ -33,6 +39,10 @@ class Tile(object):
         (TILE_T, 2) : NORTH | EAST | WEST,
         (TILE_T, 3) : NORTH | EAST | SOUTH,
     }
+
+    # reverse of tileToDirections
+    directionsToTile = dict(zip(tileToDirections.values(),
+                                tileToDirections.keys()))
 
     def __init__(self, tileType, tileRotation, playerHome=0):
         self.setTypeAndRotation(tileType, tileRotation)
@@ -57,7 +67,13 @@ class Tile(object):
 
     def hasDir(self, direction):
         directionKey = (self.tileType, self.tileRotation)
-        return direction & self.tileDirections[directionKey]
+        return direction & self.tileToDirections[directionKey]
+
+    def getDirs(self):
+        directions = 0
+        for direction in [NORTH, EAST, SOUTH, WEST]:
+            directions += self.hasDir(direction)
+        return directions
 
     def asciiTile(self):
         buf = ''
@@ -92,8 +108,10 @@ class Player(object):
     def __init__(self, playerNumber):
         self.playerNumber = playerNumber
 
-        self.name = "Player %d" % playerNumber
+        self.createPlayer()
 
+    def createPlayer(self):
+        self.name = "Player %d" % self.playerNumber
         self.location = (None, None)
 
     def getRow(self):
@@ -141,7 +159,9 @@ class Board(object):
 
         # players are enumerated from 1
         for player in range(1, players+1):
-            self.players.append(Player(player))
+            playerObj = Player(player)
+            playerObj.createPlayer()
+            self.players.append(playerObj)
 
         self.playerTurn = 1
         self.floatingTilePushed = False
@@ -149,6 +169,7 @@ class Board(object):
         def randomTileType():
             return random.choice([TILE_I, TILE_L, TILE_T])
 
+        # build up a table of random tile pieces
         for row in range(rows):
             tempRow = []
             for column in range(columns):
@@ -157,6 +178,7 @@ class Board(object):
                 tempRow.append(Tile(tileType, tileRotation))
             self.board.append(tempRow)
 
+        # set up the 4 corners of the board
         self.setPlayerHomeTile(0, 0, TILE_L, 0, 1)
         self.setPlayerHomeTile(0, columns-1, TILE_L, 1, 2)
         self.setPlayerHomeTile(rows-1, 0, TILE_L, 3, 3)
@@ -259,6 +281,22 @@ class Board(object):
 
         self.floatingTilePushed = False
 
+    def serialize(self):
+        buf = ''
+        for row in self.board:
+            for tile in row:
+                buf += hex(tile.getDirs())[-1]
+        return buf
+
+    def deserialize(self, boardBuffer):
+        count = 0
+        for row in self.board:
+            for tile in row:
+                #assert self.board[row][tile]
+                tileDirs = int(boardBuffer[count], 16)
+                tile.setTypeAndRotation(*Tile.directionsToTile[tileDirs])
+                count += 1
+
     def asciiBoard(self):
         buf = ''
 
@@ -329,4 +367,9 @@ if __name__ == '__main__':
     b.endTurn(1)
 
     b.moveColumn(2, 1, SOUTH)
+    print b.asciiBoard()
+
+    x = b.serialize()
+    b.deserialize(x)
+
     print b.asciiBoard()
