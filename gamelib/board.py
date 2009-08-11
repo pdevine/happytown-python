@@ -1,7 +1,7 @@
 import random
 
-ROW = 0
-COLUMN = 1
+ROW = 1
+COLUMN = 0
 
 ROWS = 7
 COLUMNS = 7
@@ -20,7 +20,30 @@ PLAYER_2 = 2
 PLAYER_3 = 4
 PLAYER_4 = 8
 
+PLAYER_BIT_VALUES = (
+    0,
+    PLAYER_1,
+    PLAYER_2,
+    PLAYER_3,
+    PLAYER_4
+)
+
 import traverse
+
+class BoardMovementError(Exception):
+    pass
+
+class BoardCreationError(Exception):
+    pass
+
+class PlayerTurnError(Exception):
+    pass
+
+class PlayerMovementError(Exception):
+    pass
+
+class PlayerLocationError(Exception):
+    pass
 
 class Tile(object):
     # dictionary of tile type and rotations to the direction
@@ -46,6 +69,7 @@ class Tile(object):
 
     def __init__(self, tileType, tileRotation, playerHome=0):
         self.setTypeAndRotation(tileType, tileRotation)
+        self.players = 0
 
         self.playerHome = playerHome
 
@@ -74,6 +98,17 @@ class Tile(object):
         for direction in [NORTH, EAST, SOUTH, WEST]:
             directions += self.hasDir(direction)
         return directions
+
+    def hasPlayer(self, player):
+        return PLAYER_BIT_VALUES[player] & self.players
+
+    def addPlayer(self, player):
+        assert not self.hasPlayer(player)
+        self.players = PLAYER_BIT_VALUES[player] ^ self.players
+
+    def removePlayer(self, player):
+        assert self.hasPlayer(player)
+        self.players = PLAYER_BIT_VALUES[player] ^ self.players
 
     def asciiTile(self):
         buf = ''
@@ -105,43 +140,51 @@ class Tile(object):
         return buf
 
 class Player(object):
-    def __init__(self, playerNumber):
+    def __init__(self, board, playerNumber):
         self.playerNumber = playerNumber
+        self.board = board
 
         self.createPlayer()
 
     def createPlayer(self):
         self.name = "Player %d" % self.playerNumber
-        self.location = (None, None)
+
+    def getLocation(self):
+        location = None
+
+        for rowCount, row in enumerate(self.board.board):
+            for columnCount, tile in enumerate(row):
+                if tile.hasPlayer(self.playerNumber):
+                    location = (rowCount, columnCount)
+                    break
+
+        if not location:
+            raise PlayerLocationError("Player not found on board.")
+
+        return location
+
+    def setLocation(self, location):
+        assert len(location) == 2
+
+        column, row = self.getLocation()
+        tile = self.board.board[row][column]
+        tile.removePlayer(self.playerNumber)
+
+        print "col=%d row=%d" % (location[COLUMN], location[ROW])
+        tile = self.board.board[location[ROW]][location[COLUMN]]
+        tile.addPlayer(self.playerNumber)
+
+    location = property(getLocation, setLocation)
 
     def getRow(self):
-        return self.location[ROW]
+        return self.getLocation()[ROW]
 
-    def setRow(self, row):
-        self.location = (row, self.getColumn())
-
-    row = property(getRow, setRow)
+    row = property(getRow, None)
 
     def getColumn(self):
-        return self.location[COLUMN]
+        return self.getLocation()[COLUMN]
 
-    def setColumn(self, column):
-        self.location = (self.getRow(), column)
-
-    column = property(getColumn, setColumn)
-
-
-class BoardMovementError(Exception):
-    pass
-
-class BoardCreationError(Exception):
-    pass
-
-class PlayerTurnError(Exception):
-    pass
-
-class PlayerMovementError(Exception):
-    pass
+    column = property(getColumn, None)
 
 class Board(object):
     def __init__(self, rows=ROWS, columns=COLUMNS):
@@ -159,7 +202,7 @@ class Board(object):
 
         # players are enumerated from 1
         for player in range(1, players+1):
-            playerObj = Player(player)
+            playerObj = Player(self, player)
             playerObj.createPlayer()
             self.players.append(playerObj)
 
@@ -192,7 +235,8 @@ class Board(object):
 
         # set the start location for each player
         if player <= len(self.players):
-            self.players[player-1].location = (row, column)
+            self.board[row][column].addPlayer(player)
+            print "added player"
 
     def getFloatingTile(self):
         return self.floatingTile
@@ -300,12 +344,19 @@ class Board(object):
     def asciiBoard(self):
         buf = ''
 
+        def playerString(tile, playerNumber):
+            if tile.hasPlayer(playerNumber):
+                return str(playerNumber)
+            return ' '
+
         for row in self.board:
             for tile in row:
                 if tile.hasDir(NORTH):
-                    buf = buf + "   |  "
+                    buf = buf + "  %s|%s " % (playerString(tile, 1),
+                                              playerString(tile, 2))
                 else:
-                    buf = buf + "      "
+                    buf = buf + "  %s %s " % (playerString(tile, 1),
+                                              playerString(tile, 2))
             buf = buf + "\n"
             for tile in row:
                 if tile.hasDir(WEST):
@@ -322,13 +373,15 @@ class Board(object):
             buf = buf + "\n"
             for tile in row:
                 if tile.hasDir(SOUTH):
-                    buf = buf + "   |  "
+                    buf = buf + "  %s|%s " % (playerString(tile, 3),
+                                              playerString(tile, 4))
                 else:
-                    buf = buf + "      "
+                    buf = buf + "  %s %s " % (playerString(tile, 3),
+                                              playerString(tile, 4))
             buf = buf + "\n"
         return buf
 
-    def movePlayer(self, player, row, column):
+    def movePlayer(self, player, column, row):
         if player != self.playerTurn:
             raise PlayerMovementError(
                 "Player moved out of turn")
@@ -341,12 +394,12 @@ class Board(object):
 
         startLocation = self.players[player-1].location
 
-        if traverseGraph.findPath(startLocation, (row, column)):
-            self.players[player-1].location = (row, column)
+        if traverseGraph.findPath(startLocation, (column, row)):
+            self.players[player-1].location = (column, row)
         else:
             raise PlayerMovementError(
                 "Can't move player from %s to (%d, %d)" % \
-                    (str(startLocation), row, column))
+                    (str(startLocation), column, row))
 
 if __name__ == '__main__':
     b = Board()
@@ -363,6 +416,7 @@ if __name__ == '__main__':
     print b.asciiBoard()
 
     b.movePlayer(1, 0, 1)
+    print b.asciiBoard()
 
     b.endTurn(1)
 
@@ -370,6 +424,7 @@ if __name__ == '__main__':
     print b.asciiBoard()
 
     x = b.serialize()
-    b.deserialize(x)
+    print x
+    #b.deserialize(x)
 
-    print b.asciiBoard()
+    #print b.asciiBoard()
