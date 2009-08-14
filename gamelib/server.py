@@ -79,6 +79,9 @@ def listGames():
 
     return buf
 
+def joinGame(gameKey):
+    pass
+
 def createUniqueKey():
     '''Build a random game key w/ a 16 bit md5 digest'''
     return md5.new(str(time.time()) + str(random.randint(0, 1000))).hexdigest()
@@ -117,6 +120,7 @@ print "Listening on port 8000"
 
 server.register_function(newGame, "newGame")
 server.register_function(listGames, "listGames")
+server.register_function(joinGame, "joinGame")
 server.register_function(getBoard, "getBoard")
 server.register_function(moveRow, "moveRow")
 server.register_function(moveColumn, "moveColumn")

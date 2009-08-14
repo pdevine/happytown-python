@@ -67,10 +67,11 @@ class Tile(object):
     directionsToTile = dict(zip(tileToDirections.values(),
                                 tileToDirections.keys()))
 
-    def __init__(self, tileType, tileRotation, playerHome=0):
+    def __init__(self, tileType, tileRotation, boardItem=None, playerHome=0):
         self.setTypeAndRotation(tileType, tileRotation)
         self.players = 0
 
+        self.boardItem = boardItem
         self.playerHome = playerHome
 
     def rotateClockwise(self):
@@ -88,6 +89,7 @@ class Tile(object):
     def setTypeAndRotation(self, tileType, tileRotation):
         self.tileType = tileType
         self.tileRotation = tileRotation
+
 
     def hasDir(self, direction):
         directionKey = (self.tileType, self.tileRotation)
@@ -148,6 +150,7 @@ class Player(object):
 
     def createPlayer(self):
         self.name = "Player %d" % self.playerNumber
+        self.boardItems = []
 
     def getLocation(self):
         location = None
@@ -186,9 +189,14 @@ class Player(object):
 
     column = property(getColumn, None)
 
+class BoardItem(object):
+    def __init__(self, itemNumber=0):
+        self.itemNumber = itemNumber
+
+
 class Board(object):
     def __init__(self, rows=ROWS, columns=COLUMNS):
-        self.createBoard(rows, columns, players=2)
+        self.createBoard(rows, columns, players=4)
 
     def createBoard(self, rows, columns, players):
         self.rows = rows
@@ -326,20 +334,40 @@ class Board(object):
         self.floatingTilePushed = False
 
     def serialize(self):
+        '''encode the board for quick transmission
+        '''
+
+        # TODO:  Things to serialize:
+        #           - board size (row and columns)
+        #           - items remaining to pick up per player
+        #           - player turn
+        #           - floating tile pushed
+        #           - the floating tile
+
         buf = ''
         for row in self.board:
             for tile in row:
                 buf += hex(tile.getDirs())[-1]
+                buf += hex(tile.players)[-1]
+                if tile.boardItem:
+                    buf += string.ascii_letters[tile.boardItem.itemNumber]
+                else:
+                    buf += '0'
         return buf
 
     def deserialize(self, boardBuffer):
         count = 0
+
+        # XXX - this should probably instantiate a new board object
+        #       and pick up the board size from the serialized string
+
         for row in self.board:
             for tile in row:
                 #assert self.board[row][tile]
                 tileDirs = int(boardBuffer[count], 16)
                 tile.setTypeAndRotation(*Tile.directionsToTile[tileDirs])
-                count += 1
+                tile.players = int(boardBuffer[count+1], 16)
+                count += 3
 
     def asciiBoard(self):
         buf = ''
@@ -364,7 +392,10 @@ class Board(object):
                 else:
                     buf = buf + "   "
 
-                buf = buf + "+"
+                if tile.boardItem:
+                    buf += string.ascii_letters[tile.boardItem.itemNumber]
+                else:
+                    buf += "+"
 
                 if tile.hasDir(EAST):
                     buf = buf + "--"
