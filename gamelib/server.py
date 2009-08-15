@@ -9,14 +9,14 @@ import traverse
 
 GAME_BOARDS = {}
 
-# 60 secs * 30 min
+# 60 secs * 30 = 30 min
 REMOVAL_TIME = 60 * 30
 
 class NetworkGame(object):
     def __init__(self):
         self.board = board.Board()
-
         self.players = [None, None, None, None]
+        self.started = False
 
         self.accessTime = time.time()
 
@@ -37,11 +37,33 @@ class NetworkGame(object):
                 return player
         return None
 
+    def addPlayer(self):
+        assert self.getPlayerCount() <= len(self.players)
+        for count, player in enumerate(self.players):
+            if not player:
+                self.addNotification('Player joined')
+                self.players[count] = NetworkPlayer()
+                return self.players[count].playerKey
+        return None
+
+    def addNotification(self, notification):
+        for player in self.players:
+            if player:
+                player.notifications.append(notification)
+
+    def startGame(self):
+        self.board.createBoard(self.playerCount)
+
 class NetworkPlayer(object):
     def __init__(self):
         self.playerKey = createUniqueKey()
         self.accessTime = time.time()
+        self.notifications = []
 
+def startGame(gameKey):
+    gameBoard = GAME_BOARDS.get(gameKey, None)
+    if gameBoard:
+        gameBoard.startGame()
 
 def newGame():
     global GAME_BOARDS
@@ -65,6 +87,18 @@ def cleanupGames():
         if time.time() - board.accessTime > REMOVAL_TIME:
             del GAME_BOARDS[gameKey]
 
+def updateGame(gameKey, playerKey):
+    gameBoard = GAME_BOARDS.get(gameKey, None)
+    if gameBoard:
+        for player in gameBoard.players:
+            if player.playerKey == playerKey and player.notifications:
+                notifications = '\n'.join(player.notifications)
+                player.notifications = []
+                return notifications
+            else:
+                return ''
+    return None
+
 def listGames():
     gameBoards = GAME_BOARDS.items()
     gameBoards.sort(lambda x, y: cmp(x[1], y[1]))
@@ -72,15 +106,20 @@ def listGames():
     buf = ''
 
     for gameKey, board in gameBoards:
-        buf += "%s %d %s\n" % (time.strftime('%Y.%m.%d %H:%M:%S',
-                                   time.localtime(board.accessTime)),
-                               board.playerCount,
-                               gameKey)
+        buf += "%s %d %s %s\n" % (time.strftime('%Y.%m.%d %H:%M:%S',
+                                     time.localtime(board.accessTime)),
+                                  board.playerCount,
+                                  str(board.started),
+                                  gameKey)
 
     return buf
 
 def joinGame(gameKey):
-    pass
+    gameBoard = GAME_BOARDS.get(gameKey, None)
+    if gameBoard:
+        playerKey = gameBoard.addPlayer()
+        return playerKey
+    return None
 
 def createUniqueKey():
     '''Build a random game key w/ a 16 bit md5 digest'''
@@ -121,8 +160,10 @@ print "Listening on port 8000"
 server.register_function(newGame, "newGame")
 server.register_function(listGames, "listGames")
 server.register_function(joinGame, "joinGame")
+server.register_function(startGame, "startGame")
 server.register_function(getBoard, "getBoard")
 server.register_function(moveRow, "moveRow")
 server.register_function(moveColumn, "moveColumn")
 server.register_function(findPath, "findPath")
+server.register_function(updateGame, "updateGame")
 server.serve_forever()

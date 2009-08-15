@@ -195,10 +195,8 @@ class BoardItem(object):
 
 
 class Board(object):
-    def __init__(self, rows=ROWS, columns=COLUMNS):
-        self.createBoard(rows, columns, players=4)
 
-    def createBoard(self, rows, columns, players):
+    def createBoard(self, players, rows=ROWS, columns=COLUMNS):
         self.rows = rows
         self.columns = columns
         self.board = []

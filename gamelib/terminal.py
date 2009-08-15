@@ -1,3 +1,4 @@
+import time
 import sys
 import xmlrpclib
 import socket
@@ -5,11 +6,16 @@ import socket
 SERVER_URL = None
 PROXY = None
 GAMEKEY = ''
+PLAYERKEY = ''
 
 PROGINFO = """Truva Network CLI v1.0\n(c) 2009 Patrick Devine\n\n"""
 
-GAME_LIST_HEADER = "# Players Started\n-----------------------------"
-GAME_LIST_FORMAT = "%d %s       %s %s"
+GAME_LIST_HEADER = \
+"""# Players Started Last Access
+-----------------------------"""
+
+GAME_LIST_FORMAT = \
+"""%d %s       %s       %s %s"""
 
 def createServerUrl(server='localhost', port=8000):
     return 'http://%s:%s' % (server, port)
@@ -42,7 +48,7 @@ def getNetworkInfo(server='localhost', port=8000):
     return (server, port)
 
 def main():
-    global PROXY, GAMEKEY
+    global PROXY, GAMEKEY, PLAYERKEY
 
     promptNewGame = False
     gameCache = []
@@ -65,13 +71,14 @@ def main():
     else:
         print GAME_LIST_HEADER
         for count, game in enumerate(gameList.split('\n')):
-            (gameDate, gameTime, currentPlayers, gameKey) = game.split()
+            (gameDate, gameTime, currentPlayers, gameStarted, gameKey) = \
+                game.split()
 
             # save the gamekeys to start a new game
             gameCache.append(gameKey)
 
             print GAME_LIST_FORMAT % \
-                (count+1, currentPlayers, gameTime, gameDate)
+                (count+1, currentPlayers, gameStarted[0], gameTime, gameDate)
 
         while True:
             gamePrompt = \
@@ -88,6 +95,8 @@ def main():
                 pass
             else:
                 if gameNumber > 0 and gameNumber <= count+1:
+                    GAMEKEY = gameCache[gameNumber-1]
+                    PLAYERKEY = PROXY.joinGame(GAMEKEY)
                     break
 
     while promptNewGame:
@@ -96,8 +105,18 @@ def main():
             sys.exit(0)
         elif newGame.lower() == 'y':
             GAMEKEY = PROXY.newGame()
+            PLAYERKEY = PROXY.joinGame(GAMEKEY)
             break
 
+    # holding pen
+    while True:
+        time.sleep(1)
+        notifications = PROXY.updateGame(GAMEKEY, PLAYERKEY)
+        if notifications:
+            notes = notifications.split('\n')
+            print notes
+
+    print "gk: %s pk: %s" % (GAMEKEY, PLAYERKEY)
 
 
 if __name__ == '__main__':
