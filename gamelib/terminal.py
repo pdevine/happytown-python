@@ -7,6 +7,8 @@ SERVER_URL = None
 PROXY = None
 GAMEKEY = ''
 PLAYERKEY = ''
+GAMECACHE = []
+
 
 PROGINFO = """Truva Network CLI v1.0\n(c) 2009 Patrick Devine\n\n"""
 
@@ -42,23 +44,27 @@ def getNetworkInfo(server='localhost', port=8000):
             else:
                 break
 
+    while True:
+        nameString = raw_input("Name: ")
+        if nameString != '':
+            username = nameString.strip()
+            break
+
     print "\nNetwork Server: %s" % server
     print "Port          : %d" % port
 
-    return (server, port)
+    return (server, port, username)
 
-def main():
+def displayGameList():
     global PROXY, GAMEKEY, PLAYERKEY
 
     promptNewGame = False
-    gameCache = []
 
-    print PROGINFO
-    networkProxyInfo = getNetworkInfo()
+    host, port, username = getNetworkInfo()
 
     try:
         print "Contacting Game Server"
-        PROXY = xmlrpclib.ServerProxy(createServerUrl(*networkProxyInfo))
+        PROXY = xmlrpclib.ServerProxy(createServerUrl(host, port))
         gameList = PROXY.listGames()
         gameList = gameList.rstrip()
     except socket.error:
@@ -75,7 +81,7 @@ def main():
                 game.split()
 
             # save the gamekeys to start a new game
-            gameCache.append(gameKey)
+            GAMECACHE.append(gameKey)
 
             print GAME_LIST_FORMAT % \
                 (count+1, currentPlayers, gameStarted[0], gameTime, gameDate)
@@ -95,7 +101,7 @@ def main():
                 pass
             else:
                 if gameNumber > 0 and gameNumber <= count+1:
-                    GAMEKEY = gameCache[gameNumber-1]
+                    GAMEKEY = GAMECACHE[gameNumber-1]
                     PLAYERKEY = PROXY.joinGame(GAMEKEY)
                     break
 
@@ -108,7 +114,14 @@ def main():
             PLAYERKEY = PROXY.joinGame(GAMEKEY)
             break
 
+def main():
+    global PROXY, GAMEKEY, PLAYERKEY, GAMECACHE
+    print PROGINFO
+
+    displayGameList()
+
     # holding pen
+    print "Joining game..."
     while True:
         time.sleep(1)
         notifications = PROXY.updateGame(GAMEKEY, PLAYERKEY)
