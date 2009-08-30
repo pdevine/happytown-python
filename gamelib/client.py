@@ -22,6 +22,9 @@ for img in TILE_IMAGES:
 OFFSET_X = 65
 OFFSET_Y = 55
 
+ROWS = 9
+COLUMNS = 12
+
 class Title(pyglet.text.Label):
     def __init__(self):
         pyglet.text.Label.__init__(self,
@@ -63,18 +66,39 @@ class Tile(pyglet.sprite.Sprite):
 
         self.rotation = tileRotation * 90
 
+    def getPosition(self):
+        return (self.x, self.y)
+
+    def setPosition(self, xy):
+        self.x, self.y = xy
+
+    xy = property(getPosition, setPosition)
+
+    def getMovePosition(self):
+        return (self.moveToX, self.moveToY)
+
+    def setMovePosition(self, xy):
+        self.moveToX, self.moveToY = xy
+
+    moveXY = property(getMovePosition, setMovePosition)
+
+    def reset(self):
+        self.x = self.moveToX
+        self.y = self.moveToY
+
 class Board(object):
     def __init__(self):
         self.tileBatch = pyglet.graphics.Batch()
         self.sprites = []
 
         self.moving = (0, 0)
+        self.movingTiles = []
 
-        for y in range(0, 9):
+        for y in range(ROWS):
             tempRow = []
-            for x in range(0, 12):
+            for x in range(COLUMNS):
                 tempRow.append(Tile(x * 81 + OFFSET_X,
-                                    y * 81 + OFFSET_Y,
+                                    768 - (y * 81) - OFFSET_Y,
                                     tileType=random.randint(1, 3),
                                     tileRotation=random.randint(0, 3),
                                     batch=self.tileBatch))
@@ -87,117 +111,129 @@ class Board(object):
 
         pyglet.clock.schedule(self.update)
 
-    def moveRow(self, row, direction):
-        assert direction in [board.EAST, board.WEST]
+    def moveTiles(self, pos, direction):
+        assert direction in [board.NORTH, board.EAST, board.SOUTH, board.WEST]
         assert self.moving == (0, 0)
 
-        self.moving = (direction, row)
+        self.moving = (direction, pos)
+
+        self.movingTiles = []
 
         if direction == board.EAST:
-            self.floatingTile.x = self.sprites[row][0].x - 81
-            self.floatingTile.y = self.sprites[row][0].y
-            self.floatingTile.moveToY = self.floatingTile.y
+            self.floatingTile.x = self.sprites[pos][0].x - 81
+            self.floatingTile.y = self.sprites[pos][0].y
+            self.floatingTile.moveToY = self.sprites[pos][0].y
+            self.sprites[pos].insert(0, self.floatingTile)
 
-            self.sprites[row][0:0] = [self.floatingTile]
-            self.floatingTile = self.sprites[row][-1]
-            self.floatingTile.moveToX = self.floatingTile.x + 81
-            self.sprites[row] = self.sprites[row][:-1]
+            for tile in self.sprites[pos]:
+                tile.moveToX = tile.x + 81
+                self.movingTiles.append(tile)
+
+            self.floatingTile = self.sprites[pos][-1]
+            self.sprites[pos] = self.sprites[pos][:-1]
 
         elif direction == board.WEST:
-            self.floatingTile.x = self.sprites[row][-1].x + 81
-            self.floatingTile.y = self.sprites[row][-1].y
-            self.floatingTile.moveToY = self.floatingTile.y
+            self.floatingTile.x = self.sprites[pos][-1].x + 81
+            self.floatingTile.y = self.sprites[pos][-1].y
+            self.floatingTile.moveToY = self.sprites[pos][-1].y
+            self.sprites[pos].append(self.floatingTile)
 
-            self.sprites[row].append(self.floatingTile) 
-
-            self.floatingTile = self.sprites[row][0]
-            self.floatingTile.moveToX = self.floatingTile.x - 81
-            self.sprites[row][0:1] = []
-
-        self.floatingTile.moving = direction
-
-        for tile in self.sprites[row]:
-            if direction == board.EAST:
-                tile.moveToX = tile.x + 81
-            elif direction == board.WEST:
+            for tile in self.sprites[pos]:
                 tile.moveToX = tile.x - 81
+                self.movingTiles.append(tile)
 
+            self.floatingTile = self.sprites[pos][0]
+            self.sprites[pos][0:1] = []
 
-    def moveColumn(self, column, direction):
-        assert direction in [board.NORTH, board.SOUTH]
-        assert not self.moving
+        elif direction == board.NORTH:
+            rows = len(self.sprites)
+            self.floatingTile.x = self.sprites[rows-1][pos].x
+            self.floatingTile.y = self.sprites[rows-1][pos].y - 81
+            self.floatingTile.moveToX = self.sprites[rows-1][pos].x
+            self.floatingTile.moveToY = self.sprites[rows-1][pos].y
 
-        self.moving = True
+            newFloatingTile = self.sprites[0][pos]
 
-        for row in range(9):
-            tile = self.sprites[row][column]
-            if direction == board.NORTH:
+            for row in range(rows):
+                tile = self.sprites[row][pos]
                 tile.moveToY = tile.y + 81
-            elif direction == board.SOUTH:
+                self.movingTiles.append(tile)
+                if row < rows-1:
+                    self.sprites[row][pos] = self.sprites[row+1][pos]
+                else:
+                    self.sprites[row][pos] = self.floatingTile
+
+            self.movingTiles.append(self.floatingTile)
+            self.floatingTile = newFloatingTile
+
+        elif direction == board.SOUTH:
+            rows = len(self.sprites)
+            self.floatingTile.x = self.sprites[0][pos].x
+            self.floatingTile.y = self.sprites[0][pos].y + 81
+            self.floatingTile.moveToX = self.sprites[0][pos].x
+            self.floatingTile.moveToY = self.sprites[0][pos].y
+
+            newFloatingTile = self.sprites[rows-1][pos]
+
+            for row in range(rows)[::-1]:
+                tile = self.sprites[row][pos]
                 tile.moveToY = tile.y - 81
+                self.movingTiles.append(tile)
+                if row > 0:
+                    self.sprites[row][pos] = self.sprites[row-1][pos]
+                else:
+                    self.sprites[row][pos] = self.floatingTile
+
+            self.movingTiles.append(self.floatingTile)
+            self.floatingTile = newFloatingTile
 
     def update(self, dt):
-        def resetTile(tile):
-            tile.x = tile.moveToX
-            tile.y = tile.moveToY
-
         direction, pos = self.moving
 
-        if direction == board.EAST:
-            for tile in self.sprites[pos] + [self.floatingTile]:
-                if tile.x < tile.moveToX:
-                    tile.x += dt * 40
-                else:
-                    resetTile(tile)
-                    
-        elif direction == board.WEST:
-            for tile in self.sprites[pos] + [self.floatingTile]:
-                if tile.x > tile.moveToX:
-                    tile.x -= dt * 40
-                else:
-                    resetTile(tile)
+        if direction > 0:
 
-#
-#        if self.moving:
-#            for row in self.sprites:
-#                for tile in row:
-#                    if tile.moving == board.EAST:
-#                        if tile.x < tile.moveToX:
-#                            tile.x += dt * 40
-#                        else:
-#                            tile.x = tile.moveToX
-#                            tile.moving = 0
-#                            self.moving = False
-#                    elif tile.moving == board.WEST:
-#                        if tile.x > tile.moveToX:
-#                            tile.x -= dt * 40
-#                        else:
-#                            tile.x = tile.moveToX
-#                            tile.moving = 0
-#                            self.moving = False
-#                    elif tile.moving == board.NORTH:
-#                        if tile.y < tile.moveToY:
-#                            tile.y += dt * 40
-#                        else:
-#                            tile.y = tile.moveToY
-#                            tile.moving = 0
-#                            self.moving = False
-#                    elif tile.moving == board.SOUTH:
-#                        if tile.y > tile.moveToY:
-#                            tile.y -= dt * 40
-#                        else:
-#                            tile.y = tile.moveToY
-#                            tile.moving = 0
-#                            self.moving = False
+            for tile in self.movingTiles:
+                if direction == board.EAST:
+                    if tile.x < tile.moveToX:
+                        tile.x += dt * 40
+                    else:
+                        tile.reset()
+                        self.movingTiles.remove(tile)
+                elif direction == board.WEST:
+                    if tile.x > tile.moveToX:
+                        tile.x -= dt * 40
+                    else:
+                        tile.reset()
+                        self.movingTiles.remove(tile)
+                elif direction == board.NORTH:
+                    if tile.y < tile.moveToY:
+                        tile.y += dt * 40
+                    else:
+                        tile.reset()
+                        self.movingTiles.remove(tile)
+                elif direction == board.SOUTH:
+                    if tile.y > tile.moveToY:
+                        tile.y -= dt * 40
+                    else:
+                        tile.reset()
+                        self.movingTiles.remove(tile)
 
+        if not self.movingTiles:
+            self.moving = (0, 0)
+            direction = random.choice([board.NORTH,
+                                       board.EAST,
+                                       board.SOUTH,
+                                       board.WEST])
+            if direction in [board.NORTH, board.SOUTH]:
+                self.moveTiles(random.randint(0, COLUMNS-1), direction)
+            else:
+                self.moveTiles(random.randint(0, ROWS-1), direction)
 
     def draw(self):
         self.tileBatch.draw()
 
 title = Title()
 gameBoard = Board()
-gameBoard.moveRow(2, board.EAST)
-#gameBoard.moveColumn(2, board.NORTH)
 
 @window.event
 def on_draw():
