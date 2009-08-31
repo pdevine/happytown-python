@@ -2,6 +2,8 @@ import board
 import random
 import pyglet
 
+import xmlrpclib
+
 #window = pyglet.window.Window(1024, 768)
 window = pyglet.window.Window(fullscreen=True)
 
@@ -25,33 +27,51 @@ OFFSET_Y = 55
 ROWS = 9
 COLUMNS = 12
 
-class Title(pyglet.text.Label):
+class Title(object):
     def __init__(self):
-        pyglet.text.Label.__init__(self,
-            'Truva',
-            font_name='Depraved',
-            font_size=120)
-        self.color = (0, 0, 0, 255)
+        self.label_front = \
+            pyglet.text.Label('Truva',
+                              font_name='Depraved',
+                              font_size=120,
+                              color=(250, 100, 100, 255),
+                              x=512,
+                              y=670,
+                              anchor_x='center', 
+                              anchor_y='center')
+
+        self.label_back = \
+            pyglet.text.Label('Truva',
+                              font_name='Depraved',
+                              font_size=120,
+                              color=(255, 255, 255, 255),
+                              x=502,
+                              y=670,
+                              anchor_x='center', 
+                              anchor_y='center')
 
         pyglet.clock.schedule(self.update)
 
-        self.x = 100
-        self.y = 600
         self.timer = 2
 
-        self.positions = (600, 595)
+        self.positions = (670, 665)
 
     def update(self, dt):
         self.timer -= dt
 
         if self.timer <= 0:
-            if self.y == self.positions[0]:
-                self.y = self.positions[1]
+            if self.label_front.y == self.positions[0]:
+                self.label_front.y = self.positions[1]
+                self.label_back.y = self.positions[1] - 10
             else:
-                self.y = self.positions[0]
+                self.label_front.y = self.positions[0]
+                self.label_back.y = self.positions[0] - 10
 
             if self.timer <= -0.5:
                 self.timer = random.randint(1, 5)
+
+    def draw(self):
+        self.label_back.draw()
+        self.label_front.draw()
 
 class Tile(pyglet.sprite.Sprite):
     def __init__(self, x, y, tileType=1, tileRotation=0, batch=None):
@@ -65,6 +85,8 @@ class Tile(pyglet.sprite.Sprite):
         self.moveToY = y
 
         self.rotation = tileRotation * 90
+
+        self.color = (150, 150, 150)
 
     def getPosition(self):
         return (self.x, self.y)
@@ -232,14 +254,90 @@ class Board(object):
     def draw(self):
         self.tileBatch.draw()
 
+class Menu(object):
+    def __init__(self):
+        self.labels = []
+        self.labels.append(
+            pyglet.text.Label("New Game",
+                              font_size=50,
+                              x=100,
+                              y=500))
+
+        self.selected = -1
+        self.highlighted = -1
+
+    def mousePress(self, x, y, button, modifiers):
+        self.selected = -1
+
+        for count, label in enumerate(self.labels):
+            if x > label.x and x < label.x + label.content_width and \
+               y > label.y and y < label.y + label.content_height:
+                label.x += 5
+                label.y -= 5
+                self.selected = count
+                break
+
+    def mouseRelease(self, x, y, button, modifiers):
+        if self.selected > -1:
+            label = self.labels[self.selected]
+            label.x -= 5
+            label.y += 5
+
+    def mouseMotion(self, x, y, dx, dy):
+        for count, label in enumerate(self.labels):
+            if x > label.x and x < label.x + label.content_width and \
+               y > label.y and y < label.y + label.content_height:
+                label.color = (255, 50, 50, 255)
+                self.highlighted = count
+                return
+
+        # turn off the highlight colour
+        if self.highlighted > -1:
+            label = self.labels[self.highlighted]
+            label.color = (255, 255, 255, 255)
+
+    def update(self, dt):
+        pass
+
+    def draw(self):
+        for label in self.labels:
+            label.draw()
+
+class NetworkGame(object):
+    def __init__(self, serverUrl='http://localhost:8000'):
+        gameServer = xmlrpclib.ServerProxy(serverUrl)
+
+        self.serverResponding = True
+
+        try:
+            self.gameList = gameServer.listGames()
+        except socket.error:
+            self.serverResponding = False
+            self.gameList = []
+
+
 title = Title()
 gameBoard = Board()
+menu = Menu()
 
 @window.event
 def on_draw():
     window.clear()
     gameBoard.draw()
     title.draw()
+    menu.draw()
+
+@window.event
+def on_mouse_press(x, y, button, modifiers):
+    menu.mousePress(x, y, button, modifiers)
+
+@window.event
+def on_mouse_release(x, y, button, modifiers):
+    menu.mouseRelease(x, y, button, modifiers)
+
+@window.event
+def on_mouse_motion(x, y, dx, dy):
+    menu.mouseMotion(x, y, dx, dy)
 
 pyglet.app.run()
 
