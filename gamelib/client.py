@@ -8,6 +8,7 @@ import xmlrpclib
 window = pyglet.window.Window(fullscreen=True)
 
 pyglet.font.add_file('../data/depraved.ttf')
+pyglet.font.add_file('../data/jamaistevie.ttf')
 
 TILE_IMAGES = (
     '',
@@ -33,7 +34,7 @@ class Title(object):
             pyglet.text.Label('Truva',
                               font_name='Depraved',
                               font_size=120,
-                              color=(250, 100, 100, 255),
+                              color=(255, 50, 0, 255),
                               x=512,
                               y=670,
                               anchor_x='center', 
@@ -74,7 +75,8 @@ class Title(object):
         self.label_front.draw()
 
 class Tile(pyglet.sprite.Sprite):
-    def __init__(self, x, y, tileType=1, tileRotation=0, batch=None):
+    def __init__(self, x, y, color=(255, 255, 255), tileType=1,
+                       tileRotation=0, batch=None):
 
         pyglet.sprite.Sprite.__init__(self, TILE_IMAGES[tileType], batch=batch)
 
@@ -86,7 +88,7 @@ class Tile(pyglet.sprite.Sprite):
 
         self.rotation = tileRotation * 90
 
-        self.color = (150, 150, 150)
+        self.color = color
 
     def getPosition(self):
         return (self.x, self.y)
@@ -109,24 +111,31 @@ class Tile(pyglet.sprite.Sprite):
         self.y = self.moveToY
 
 class Board(object):
-    def __init__(self):
+    def __init__(self, demo=False):
         self.tileBatch = pyglet.graphics.Batch()
         self.sprites = []
 
         self.moving = (0, 0)
         self.movingTiles = []
 
+        # make the colour dimmer if we're not running in a real game
+        color = (255, 255, 255)
+        if demo:
+            color = (150, 150, 150)
+
         for y in range(ROWS):
             tempRow = []
             for x in range(COLUMNS):
                 tempRow.append(Tile(x * 81 + OFFSET_X,
                                     768 - (y * 81) - OFFSET_Y,
+                                    color=color,
                                     tileType=random.randint(1, 3),
                                     tileRotation=random.randint(0, 3),
                                     batch=self.tileBatch))
             self.sprites.append(tempRow)
 
         self.floatingTile = Tile(-100, -100,
+                                 color=color,
                                  tileType=random.randint(1, 3),
                                  tileRotation=random.randint(0, 3),
                                  batch=self.tileBatch)
@@ -256,15 +265,28 @@ class Board(object):
 
 class Menu(object):
     def __init__(self):
-        self.labels = []
-        self.labels.append(
-            pyglet.text.Label("New Game",
+        self.labels = [
+            pyglet.text.Label('New Game',
+                              font_name='jamaistevie',
                               font_size=50,
-                              x=100,
-                              y=500))
+                              x=170,
+                              y=500),
+            pyglet.text.Label('Join Game',
+                              font_name='jamaistevie',
+                              font_size=50,
+                              x=170,
+                              y=400),
+            pyglet.text.Label('Quit',
+                              font_name='jamaistevie',
+                              font_size=50,
+                              x=170,
+                              y=300),
+        ]
 
         self.selected = -1
         self.highlighted = -1
+
+        self.shadow = ShadowImage()
 
     def mousePress(self, x, y, button, modifiers):
         self.selected = -1
@@ -284,17 +306,18 @@ class Menu(object):
             label.y += 5
 
     def mouseMotion(self, x, y, dx, dy):
+        # turn off the highlight colour
+        if self.highlighted > -1:
+            label = self.labels[self.highlighted]
+            label.color = (255, 255, 255, 255)
+
         for count, label in enumerate(self.labels):
             if x > label.x and x < label.x + label.content_width and \
                y > label.y and y < label.y + label.content_height:
                 label.color = (255, 50, 50, 255)
                 self.highlighted = count
-                return
+                break
 
-        # turn off the highlight colour
-        if self.highlighted > -1:
-            label = self.labels[self.highlighted]
-            label.color = (255, 255, 255, 255)
 
     def update(self, dt):
         pass
@@ -302,6 +325,18 @@ class Menu(object):
     def draw(self):
         for label in self.labels:
             label.draw()
+
+        self.shadow.draw()
+
+class ShadowImage(pyglet.sprite.Sprite):
+    def __init__(self, imageName='../data/spartan.png'):
+        img = pyglet.image.load(imageName) 
+        pyglet.sprite.Sprite.__init__(self, img)
+
+        self.opacity = 50
+        self.color = (100, 100, 100)
+        self.x = 700
+        self.scale = 1.5
 
 class NetworkGame(object):
     def __init__(self, serverUrl='http://localhost:8000'):
@@ -317,7 +352,7 @@ class NetworkGame(object):
 
 
 title = Title()
-gameBoard = Board()
+gameBoard = Board(demo=True)
 menu = Menu()
 
 @window.event
