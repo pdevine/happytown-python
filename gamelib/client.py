@@ -1,6 +1,9 @@
+import sys
 import board
 import random
 import pyglet
+
+from pyglet.window import key
 
 import xmlrpclib
 
@@ -285,8 +288,11 @@ class Menu(object):
 
         self.selected = -1
         self.highlighted = -1
+        self.execute = False
 
         self.shadow = ShadowImage()
+
+        pyglet.clock.schedule(self.update)
 
     def mousePress(self, x, y, button, modifiers):
         self.selected = -1
@@ -305,22 +311,61 @@ class Menu(object):
             label.x -= 5
             label.y += 5
 
+            for count, label in enumerate(self.labels):
+                if x > label.x and x < label.x + label.content_width and \
+                   y > label.y and y < label.y + label.content_height:
+                    if self.selected == count:
+                        self.execute = True
+                        break
+
     def mouseMotion(self, x, y, dx, dy):
-        # turn off the highlight colour
-        if self.highlighted > -1:
-            label = self.labels[self.highlighted]
-            label.color = (255, 255, 255, 255)
+        self._removeHighlight()
 
         for count, label in enumerate(self.labels):
             if x > label.x and x < label.x + label.content_width and \
                y > label.y and y < label.y + label.content_height:
-                label.color = (255, 50, 50, 255)
+                self._setHighlight(label)
                 self.highlighted = count
                 break
 
+    def keyPress(self, symbol, modifiers):
+        if symbol == key.ENTER:
+            pass
+        elif symbol == key.UP:
+            self._removeHighlight()
+
+            self.highlighted -= 1
+            if self.highlighted <= -1:
+                self.highlighted = len(self.labels)-1
+
+            self._setHighlight(self.labels[self.highlighted])
+
+        elif symbol == key.DOWN:
+            self._removeHighlight()
+
+            self.highlighted += 1
+            if self.highlighted >= len(self.labels):
+                self.highlighted = 0
+
+            self._setHighlight(self.labels[self.highlighted])
+
+    def keyRelease(self, symbol, modifiers):
+        pass        
+
+    def _setHighlight(self, label):
+        label.color = (255, 50, 50, 255)
+
+    def _removeHighlight(self):
+        if self.highlighted > -1:
+            label = self.labels[self.highlighted]
+            label.color = (255, 255, 255, 255)
 
     def update(self, dt):
-        pass
+        if self.execute:
+            if self.selected == 0:
+                pass
+            if self.selected == 2:
+                sys.exit(0)
 
     def draw(self):
         for label in self.labels:
@@ -350,10 +395,115 @@ class NetworkGame(object):
             self.serverResponding = False
             self.gameList = []
 
+class AnimatedSprite(pyglet.sprite.Sprite):
+    def __init__(self,
+                 img,
+                 x=0, y=0,
+                 blend_src=pyglet.gl.GL_SRC_ALPHA,
+                 blend_dest=pyglet.gl.GL_ONE_MINUS_SRC_ALPHA,
+                 batch=None,
+                 group=None,
+                 usage='dynamic'):
+        pyglet.sprite.Sprite.__init__(self, img, x, y, blend_src, blend_dest,
+                                      batch, group, usage)
+
+        self._paused = False
+        self._range = (0, 1)
+
+    def _animate(self, dt):
+        self._frame_index += 1
+        if self._frame_index >= self.range[1]:
+            self._frame_index = self.range[0]
+            self.dispatch_event('on_animation_end')
+
+        frame = self._animation.frames[self._frame_index]
+        self._set_texture(frame.image.get_texture())
+
+        if frame.duration != None:
+            pyglet.clock.schedule_once(self._animate, frame.duration)
+        else:
+            self.dispatch_event('on_animation_end')
+
+    def set_frame(self, i):
+        self._frame_index = max(self.range[0], min(self.range[1], i))
+        frame = self._animation.frames[self._frame_index]
+
+        pyglet.clock.unschedule(self._animate)
+        self._animate(0.0)
+
+    def set_loop(self, begin, end):
+        self.range = (begin, end)
+
+        if self._frame_index < begin:
+            self._frame_index = begin - 1
+
+        pyglet.clock.unschedule(self._animate)
+        self._animate(0.0)
+
+    def pause(self):
+        if not self._paused:
+            frame = self._animation.frames[self._frame_index]
+            self._animate(frame.duration)
+            pyglet.clock.unschedule(self._animate)
+            self._paused = True
+
+    def play(self):
+        if self._paused:
+            frame = self._animation.frames[self._frame_index]
+            self._animate(frame.duration)
+            self._paused = False
+        
+
+class Character(AnimatedSprite):
+    def __init__(self):
+        img = pyglet.image.load('../data/person1.png')
+        image_grid = pyglet.image.ImageGrid(img, 4, 4)
+
+        self.walking = True
+        self.direction = board.SOUTH
+        self.frame_duration = 0.20
+
+        AnimatedSprite.__init__(self,
+            image_grid.get_animation(self.frame_duration))
+
+        self.walk_south()
+
+    def walk_north(self):
+        self.play()
+        self.set_loop(0, 4)
+
+    def walk_east(self):
+        self.play()
+        self.set_loop(4, 8)
+
+    def walk_west(self):
+        self.play()
+        self.set_loop(8, 12)
+
+    def walk_south(self):
+        self.play()
+        self.set_loop(12, 16)
+
+    def rest(self):
+        self.set_frame(14)
+        self.pause()
+
+    def keyPress(self, symbol, modifiers):
+        if symbol == key.RIGHT:
+            self.walk_east()
+        elif symbol == key.LEFT:
+            self.walk_west()
+        elif symbol == key.UP:
+            self.walk_north()
+        elif symbol == key.DOWN:
+            self.walk_south()
+        elif symbol == key.SPACE:
+            self.rest()
 
 title = Title()
 gameBoard = Board(demo=True)
 menu = Menu()
+person = Character()
 
 @window.event
 def on_draw():
@@ -361,6 +511,7 @@ def on_draw():
     gameBoard.draw()
     title.draw()
     menu.draw()
+    person.draw()
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
@@ -373,6 +524,15 @@ def on_mouse_release(x, y, button, modifiers):
 @window.event
 def on_mouse_motion(x, y, dx, dy):
     menu.mouseMotion(x, y, dx, dy)
+
+@window.event
+def on_key_release(symbol, modifiers):
+    menu.keyRelease(symbol, modifiers)
+
+@window.event
+def on_key_press(symbol, modifiers):
+    menu.keyPress(symbol, modifiers)
+    person.keyPress(symbol, modifiers)
 
 pyglet.app.run()
 
