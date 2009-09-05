@@ -2,6 +2,7 @@ import sys
 import board
 import random
 import pyglet
+import menu
 
 from pyglet.window import key
 
@@ -266,122 +267,6 @@ class Board(object):
     def draw(self):
         self.tileBatch.draw()
 
-class Menu(object):
-    def __init__(self):
-        self.labels = [
-            pyglet.text.Label('New Game',
-                              font_name='jamaistevie',
-                              font_size=50,
-                              x=170,
-                              y=500),
-            pyglet.text.Label('Join Game',
-                              font_name='jamaistevie',
-                              font_size=50,
-                              x=170,
-                              y=400),
-            pyglet.text.Label('Quit',
-                              font_name='jamaistevie',
-                              font_size=50,
-                              x=170,
-                              y=300),
-        ]
-
-        self.selected = -1
-        self.highlighted = -1
-        self.execute = False
-
-        self.shadow = ShadowImage()
-
-        pyglet.clock.schedule(self.update)
-
-    def mousePress(self, x, y, button, modifiers):
-        self.selected = -1
-
-        for count, label in enumerate(self.labels):
-            if x > label.x and x < label.x + label.content_width and \
-               y > label.y and y < label.y + label.content_height:
-                label.x += 5
-                label.y -= 5
-                self.selected = count
-                break
-
-    def mouseRelease(self, x, y, button, modifiers):
-        if self.selected > -1:
-            label = self.labels[self.selected]
-            label.x -= 5
-            label.y += 5
-
-            for count, label in enumerate(self.labels):
-                if x > label.x and x < label.x + label.content_width and \
-                   y > label.y and y < label.y + label.content_height:
-                    if self.selected == count:
-                        self.execute = True
-                        break
-
-    def mouseMotion(self, x, y, dx, dy):
-        self._removeHighlight()
-
-        for count, label in enumerate(self.labels):
-            if x > label.x and x < label.x + label.content_width and \
-               y > label.y and y < label.y + label.content_height:
-                self._setHighlight(label)
-                self.highlighted = count
-                break
-
-    def keyPress(self, symbol, modifiers):
-        if symbol == key.ENTER:
-            pass
-        elif symbol == key.UP:
-            self._removeHighlight()
-
-            self.highlighted -= 1
-            if self.highlighted <= -1:
-                self.highlighted = len(self.labels)-1
-
-            self._setHighlight(self.labels[self.highlighted])
-
-        elif symbol == key.DOWN:
-            self._removeHighlight()
-
-            self.highlighted += 1
-            if self.highlighted >= len(self.labels):
-                self.highlighted = 0
-
-            self._setHighlight(self.labels[self.highlighted])
-
-    def keyRelease(self, symbol, modifiers):
-        pass        
-
-    def _setHighlight(self, label):
-        label.color = (255, 50, 50, 255)
-
-    def _removeHighlight(self):
-        if self.highlighted > -1:
-            label = self.labels[self.highlighted]
-            label.color = (255, 255, 255, 255)
-
-    def update(self, dt):
-        if self.execute:
-            if self.selected == 0:
-                pass
-            if self.selected == 2:
-                sys.exit(0)
-
-    def draw(self):
-        for label in self.labels:
-            label.draw()
-
-        self.shadow.draw()
-
-class ShadowImage(pyglet.sprite.Sprite):
-    def __init__(self, imageName='../data/spartan.png'):
-        img = pyglet.image.load(imageName) 
-        pyglet.sprite.Sprite.__init__(self, img)
-
-        self.opacity = 50
-        self.color = (100, 100, 100)
-        self.x = 700
-        self.scale = 1.5
 
 class NetworkGame(object):
     def __init__(self, serverUrl='http://localhost:8000'):
@@ -502,7 +387,7 @@ class Character(AnimatedSprite):
 
 title = Title()
 gameBoard = Board(demo=True)
-menu = Menu()
+menu = menu.MainMenu()
 person = Character()
 
 @window.event
