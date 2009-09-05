@@ -2,6 +2,8 @@ import sys
 import pyglet
 from pyglet.window import key
 
+FACES = pyglet.image.load('../data/faces.png')
+
 class Menu(object):
     def __init__(self, labels=None, labelColor=(255, 255, 255, 255),
                        highlightColor=(255, 50, 50, 255)):
@@ -126,6 +128,59 @@ class MainMenu(Menu):
     def draw(self):
         Menu.draw(self)
         self.shadow.draw()
+
+class PlayerImage(pyglet.sprite.Sprite):
+    def __init__(self, image, x, y):
+        pyglet.sprite.Sprite.__init__(self, image, x, y)
+
+class Selector(object):
+    def __init__(self):
+        pass
+
+    def draw(self):
+        pyglet.graphics.draw(4, pyglet.gl.GL_LINE_LOOP,
+            ('v2i',
+                (100, 100,
+                 200, 100,
+                 200, 200,
+                 100, 200)))
+        pass
+
+class NewGameMenu(object):
+    def __init__(self):
+        self.playerImages = []
+        image_grid = pyglet.image.ImageGrid(FACES, 2, 4)
+
+        count = 0
+        for row in range(4):
+            for col in range(2):
+                self.playerImages.append(PlayerImage(image_grid[count],
+                                         row * 150 + 150, col * 100 + 200))
+                count += 1
+
+        self.selector = Selector()
+
+    def mousePress(self, *args):
+        pass
+
+    def mouseRelease(self, *args):
+        pass
+
+    def mouseMotion(self, *args):
+        pass
+
+    def keyPress(self, *args):
+        pass
+
+    def keyRelease(self, *args):
+        pass
+
+    def draw(self):
+        for player in self.playerImages:
+            player.draw()
+
+        self.selector.draw()
+
 
 class ShadowImage(pyglet.sprite.Sprite):
     def __init__(self, imageName='../data/spartan.png'):
