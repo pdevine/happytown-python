@@ -179,18 +179,24 @@ class NewGameMenu(object):
         self.playerImages = []
         image_grid = pyglet.image.ImageGrid(FACES, 2, 4)
 
-        count = 0
-        for row in range(4):
-            for col in range(2):
-                self.playerImages.append(PlayerImage(image_grid[count],
-                                         row * 150 + 150, col * 100 + 200))
-                count += 1
+        row = 1
+        col = 0
+        for count, player in enumerate(image_grid):
+            if count == 4:
+                row = 0
+                col = 0
+            self.playerImages.append(PlayerImage(image_grid[count],
+                                     col * 150 + 240, row * 140 + 200))
+            col += 1
 
         self.selected = 0
         self.selector = Selector()
 
-        self.selector.x = self.playerImages[self.selected].x
-        self.selector.y = self.playerImages[self.selected].y
+        self.setSelector(self.selected)
+
+    def setSelector(self, selected):
+        self.selector.x = self.playerImages[selected].x - 2
+        self.selector.y = self.playerImages[selected].y - 2
 
     def mousePress(self, *args):
         pass
@@ -198,23 +204,47 @@ class NewGameMenu(object):
     def mouseRelease(self, *args):
         pass
 
-    def mouseMotion(self, *args):
-        pass
+    def mouseMotion(self, x, y, dx, dy):
+        for count, playerImg in enumerate(self.playerImages):
+            if x > playerImg.x and x < playerImg.x + playerImg.width and \
+               y > playerImg.y and y < playerImg.y + playerImg.height:
+                self.selected = count
+                self.setSelector(self.selected)
+                break
 
     def keyPress(self, symbol, modifiers):
         if symbol == key.RIGHT:
-            self.selected += 1
-            self.selector.x = self.playerImages[self.selected].x
-            self.selector.y = self.playerImages[self.selected].y
+            if self.selected + 1 < len(self.playerImages):
+                self.selected += 1
+                self.setSelector(self.selected)
         elif symbol == key.LEFT:
-            self.selected -= 1
-            self.selector.x = self.playerImages[self.selected].x
-            self.selector.y = self.playerImages[self.selected].y
+            if self.selected > 0:
+                self.selected -= 1
+                self.setSelector(self.selected)
+        elif symbol == key.UP:
+            # assuming 2 rows
+            if self.selected >= len(self.playerImages) / 2:
+                self.selected -= len(self.playerImages) / 2
+                self.setSelector(self.selected)
+        elif symbol == key.DOWN:
+            if self.selected < len(self.playerImages) / 2:
+                self.selected += len(self.playerImages) / 2
+                self.setSelector(self.selected)
 
     def keyRelease(self, *args):
         pass
 
     def draw(self):
+        pyglet.gl.glColor4ub(0, 0, 0, 130)
+        pyglet.gl.glEnable(pyglet.gl.GL_BLEND)
+        pyglet.gl.glBlendFunc(pyglet.gl.GL_SRC_ALPHA, pyglet.gl.GL_ONE_MINUS_SRC_ALPHA)
+        pyglet.graphics.draw(4, pyglet.gl.GL_QUADS,
+            ('v2i',
+                (150, 150,
+                 875, 150,
+                 875, 600,
+                 150, 600)))
+
         for player in self.playerImages:
             player.draw()
 
