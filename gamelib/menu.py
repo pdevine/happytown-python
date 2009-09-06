@@ -1,4 +1,5 @@
 import sys
+import colorsys
 import pyglet
 from pyglet.window import key
 
@@ -117,7 +118,6 @@ class MainMenu(Menu):
 
         pyglet.clock.schedule(self.update)
 
-
     def update(self, dt):
         if self.execute:
             if self.selected == 0:
@@ -133,18 +133,46 @@ class PlayerImage(pyglet.sprite.Sprite):
     def __init__(self, image, x, y):
         pyglet.sprite.Sprite.__init__(self, image, x, y)
 
+    def draw(self):
+        pyglet.sprite.Sprite.draw(self)
+
 class Selector(object):
-    def __init__(self):
-        pass
+    def __init__(self, hue=0.23, x=0, y=0):
+        assert hue >= 0.0 and hue <= 1.0
+        self.hsv = [hue, 0, 1]
+        self.increasing = True
+
+        self.x = x
+        self.y = y
+
+        pyglet.clock.schedule(self.update)
+
+    def update(self, dt):
+        saturation = self.hsv[1]
+        if self.increasing:
+            saturation += dt * 1.25
+        else:
+            saturation -= dt * 1.25
+
+        if saturation > 1.0:
+            self.increasing = False
+            saturation = 1.0
+        elif saturation < 0.0:
+            self.increasing = True
+            saturation = 0.0
+
+        self.hsv[1] = saturation
 
     def draw(self):
+        pyglet.gl.glLineWidth(4)
+        r, g, b = colorsys.hsv_to_rgb(*self.hsv)
+        pyglet.gl.glColor4f(r, g, b, 1.0)
         pyglet.graphics.draw(4, pyglet.gl.GL_LINE_LOOP,
             ('v2i',
-                (100, 100,
-                 200, 100,
-                 200, 200,
-                 100, 200)))
-        pass
+                (self.x, self.y,
+                 self.x+100, self.y,
+                 self.x+100, self.y+100,
+                 self.x, self.y+100)))
 
 class NewGameMenu(object):
     def __init__(self):
@@ -158,7 +186,11 @@ class NewGameMenu(object):
                                          row * 150 + 150, col * 100 + 200))
                 count += 1
 
+        self.selected = 0
         self.selector = Selector()
+
+        self.selector.x = self.playerImages[self.selected].x
+        self.selector.y = self.playerImages[self.selected].y
 
     def mousePress(self, *args):
         pass
@@ -169,8 +201,15 @@ class NewGameMenu(object):
     def mouseMotion(self, *args):
         pass
 
-    def keyPress(self, *args):
-        pass
+    def keyPress(self, symbol, modifiers):
+        if symbol == key.RIGHT:
+            self.selected += 1
+            self.selector.x = self.playerImages[self.selected].x
+            self.selector.y = self.playerImages[self.selected].y
+        elif symbol == key.LEFT:
+            self.selected -= 1
+            self.selector.x = self.playerImages[self.selected].x
+            self.selector.y = self.playerImages[self.selected].y
 
     def keyRelease(self, *args):
         pass
