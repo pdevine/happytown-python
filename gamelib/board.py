@@ -202,9 +202,9 @@ class Board(object):
         self.board = []
         self.players = []
 
-        if players < 2:
-            raise BoardCreationError(
-                "Must have 2 or more players to start a game")
+        #if players < 2:
+        #    raise BoardCreationError(
+        #        "Must have 2 or more players to start a game")
 
         # players are enumerated from 1
         for player in range(1, players+1):

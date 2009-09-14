@@ -30,6 +30,7 @@ def joinGame(client, *args):
     assert args[0] in gameBoards.keys()
 
     gameBoards[args[0]].addPlayer(client)
+    client.game = gameBoards[args[0]]
 
     return 'joined game %s' % args[0]
 
@@ -46,6 +47,16 @@ def setNick(client, *args):
     client.name = args[0] 
     return 'name changed to %s\n' % (client.name)
 
+def startGame(client, *args):
+    # XXX - only allow starting by the person who created the game?
+
+    if not client.game:
+        return 'need to join a game\n'
+
+    client.game.board.createBoard(client.game.playerCount)
+
+    return ''
+
 def newGame(client, *args):
     global gameBoards
 
@@ -59,11 +70,17 @@ def newGame(client, *args):
 
     joinGame(client, gameKey)
 
-    return gameKey
+    return gameKey + '\n'
+
+def printAsciiBoard(client, *args):
+    return client.game.board.asciiBoard()
+
+def printBoard(client, *args):
+    return client.game.board.serialize()
 
 class NetworkGame(object):
     def __init__(self):
-        self.board = board.Board
+        self.board = board.Board()
         self.players = [None, None, None, None]
         self.started = False
 
@@ -107,6 +124,8 @@ class NetworkPlayer(object):
         self.client = client
         self.address = address
 
+        self.game = None
+
     def send(self, msg):
         self.client.send(msg)
 
@@ -116,6 +135,9 @@ commandDict = {
     '/join' : joinGame,
     '/nick' : setNick,
     '/new' : newGame,
+    '/start' : startGame,
+    '/asciiboard' : printAsciiBoard,
+    '/board' : printBoard,
 }
 
 
@@ -152,6 +174,7 @@ def main():
                     # all commands start with /
                     if data.startswith('/'):
                         tokens = data.split()
+                        print tokens
                         cmd = commandDict.get(tokens[0])
                         if cmd:
                             sock.send(cmd(clientDict[client], *tokens[1:]))
