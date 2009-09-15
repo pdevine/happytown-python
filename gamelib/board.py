@@ -258,12 +258,16 @@ class Board(object):
             raise BoardMovementError(
                 "Floating tile already pushed")
 
+        if row < 0 or row >= self.rows:
+            raise BoardMovementError(
+                "Row number is invalid")
+
         if direction not in [EAST, WEST]:
             raise BoardMovementError(
                 "Tried to move board in the wrong direction")
 
         if row == 0 or row == self.rows - 1:
-            raise BoardMovementException(
+            raise BoardMovementError(
                 "Can't move the corners")
 
         if direction == WEST:

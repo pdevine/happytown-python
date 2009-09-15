@@ -73,10 +73,45 @@ def newGame(client, *args):
     return gameKey + '\n'
 
 def printAsciiBoard(client, *args):
+    if not client.game:
+        return 'need to join a game\n'
+
+    if not client.game.board:
+        return 'need to start the game\n'
+
     return client.game.board.asciiBoard()
 
 def printBoard(client, *args):
+    if not client.game: 
+        return 'need to join a game\n'
+
+    if not client.game.board:
+        return 'need to start the game\n'
+
     return client.game.board.serialize()
+
+def moveRow(client, *args):
+    if not client.game: 
+        return 'need to join a game\n'
+
+    if not client.game.board:
+        return 'need to start the game\n'
+
+    if len(args) != 2:
+        return 'need to specify a row and direction'
+
+    row, dir = args
+
+    #return str(client.getPlayerNumber()) + '\n'
+    try:
+        client.game.board.moveRow(client.getPlayerNumber(), int(row), int(dir))
+    except board.BoardMovementError, msg:
+        return str(msg) + '\n'
+
+    return ''
+
+def moveColumn(client, *args):
+    pass
 
 class NetworkGame(object):
     def __init__(self):
@@ -126,6 +161,11 @@ class NetworkPlayer(object):
 
         self.game = None
 
+    def getPlayerNumber(self):
+        assert self.game.board
+
+        return self.game.players.index(self) + 1
+
     def send(self, msg):
         self.client.send(msg)
 
@@ -138,6 +178,8 @@ commandDict = {
     '/start' : startGame,
     '/asciiboard' : printAsciiBoard,
     '/board' : printBoard,
+    '/moverow' : moveRow,
+    '/movecolumn' : moveColumn,
 }
 
 
