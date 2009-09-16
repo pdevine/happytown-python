@@ -329,7 +329,7 @@ class Board(object):
                 "Player tried to end turn out of turn")
 
         if player >= len(self.players):
-            self.playerTurn = 0
+            self.playerTurn = 1
         else:
             self.playerTurn += 1
 

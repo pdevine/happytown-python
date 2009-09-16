@@ -100,18 +100,69 @@ def moveRow(client, *args):
     if len(args) != 2:
         return 'need to specify a row and direction'
 
-    row, dir = args
+    try:
+        row = int(args[0])
+        dir = int(args[1])
+    except ValueError:
+        return 'need to specify a row and direction'
 
     #return str(client.getPlayerNumber()) + '\n'
     try:
-        client.game.board.moveRow(client.getPlayerNumber(), int(row), int(dir))
+        client.game.board.moveRow(client.getPlayerNumber(), row, dir)
     except board.BoardMovementError, msg:
         return str(msg) + '\n'
 
     return ''
 
 def moveColumn(client, *args):
-    pass
+    if not client.game: 
+        return 'need to join a game\n'
+
+    if not client.game.board:
+        return 'need to start the game\n'
+
+    if len(args) != 2:
+        return 'need to specify a column and direction'
+
+    try:
+        col = int(args[0])
+        dir = int(args[1])
+    except ValueError:
+        return 'need to specify a column and direction'
+
+    try:
+        client.game.board.moveColumn(client.getPlayerNumber(), col, dir)
+    except board.BoardMovementError, msg:
+        return str(msg) + '\n'
+
+    return ''
+
+
+def movePlayer(client, *args):
+
+    if len(args) != 2:
+        return 'need to specify a row and column\n'
+
+    try:
+        col = int(args[0])
+        row = int(args[1])
+    except ValueError:
+        return 'need to specify a row and column\n'
+
+    try:
+        client.game.board.movePlayer(client.getPlayerNumber(), col, row)
+    except board.PlayerMovementError, msg:
+        return str(msg) + '\n'
+
+    return ''
+
+def endTurn(client, *args):
+    try:
+        client.game.board.endTurn(client.getPlayerNumber())
+    except board.PlayerTurnError, msg:
+        return str(msg) + '\n'
+
+    return ''
 
 class NetworkGame(object):
     def __init__(self):
@@ -178,8 +229,10 @@ commandDict = {
     '/start' : startGame,
     '/asciiboard' : printAsciiBoard,
     '/board' : printBoard,
-    '/moverow' : moveRow,
-    '/movecolumn' : moveColumn,
+    '/pushrow' : moveRow,
+    '/pushcolumn' : moveColumn,
+    '/move' : movePlayer,
+    '/end' : endTurn,
 }
 
 
