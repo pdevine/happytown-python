@@ -58,7 +58,7 @@ class Tile(object):
         (TILE_I, 2) : NORTH | SOUTH,
         (TILE_I, 3) : EAST | WEST,
         (TILE_T, 0) : EAST | SOUTH | WEST,
-        (TILE_T, 1) : NORTH | EAST | SOUTH,
+        (TILE_T, 1) : NORTH | WEST | SOUTH,
         (TILE_T, 2) : NORTH | EAST | WEST,
         (TILE_T, 3) : NORTH | EAST | SOUTH,
     }
@@ -158,7 +158,7 @@ class Player(object):
         for rowCount, row in enumerate(self.board.board):
             for columnCount, tile in enumerate(row):
                 if tile.hasPlayer(self.playerNumber):
-                    location = (rowCount, columnCount)
+                    location = (columnCount, rowCount)
                     break
 
         if not location:
@@ -229,13 +229,13 @@ class Board(object):
 
         # set up the 4 corners of the board
         self.setPlayerHomeTile(0, 0, TILE_L, 0, 1)
-        self.setPlayerHomeTile(0, columns-1, TILE_L, 1, 2)
-        self.setPlayerHomeTile(rows-1, 0, TILE_L, 3, 3)
-        self.setPlayerHomeTile(rows-1, columns-1, TILE_L, 2, 4)
+        self.setPlayerHomeTile(columns-1, rows-1, TILE_L, 2, 2)
+        self.setPlayerHomeTile(columns-1, 0, TILE_L, 1, 3)
+        self.setPlayerHomeTile(0, rows-1, TILE_L, 3, 4)
 
         self.floatingTile = Tile(randomTileType(), 0)
 
-    def setPlayerHomeTile(self, row, column, tile, rotation, player):
+    def setPlayerHomeTile(self, column, row, tile, rotation, player):
         self.board[row][column].setTypeAndRotation(tile, rotation)
         self.board[row][column].playerHome = player
 
@@ -296,11 +296,11 @@ class Board(object):
                 "Floating tile already pushed")
 
         if direction not in [NORTH, SOUTH]:
-            raise BoardMovementException(
+            raise BoardMovementError(
                 "Tried to move board in the wrong direction")
 
         if column == 0 or column == self.columns - 1:
-            raise BoardMovementException(
+            raise BoardMovementError(
                 "Can't move the corners")
 
         if direction == NORTH:
@@ -423,12 +423,15 @@ class Board(object):
             raise PlayerMovementError(
                 "Player tried moving before pushing the floating tile")
 
+        print "col=%d row=%d" % (column, row)
+
         traverseGraph = traverse.TraversalGraph(self)
 
         startLocation = self.players[player-1].location
 
         if traverseGraph.findPath(startLocation, (column, row)):
             self.players[player-1].location = (column, row)
+            print "loc: col: %d row: %d" % (column, row)
         else:
             raise PlayerMovementError(
                 "Can't move player from %s to (%d, %d)" % \
