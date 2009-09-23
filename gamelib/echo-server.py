@@ -27,12 +27,15 @@ def listGames(client, *args):
     return '\n'.join(buf) + '\n'
 
 def joinGame(client, *args):
-    assert args[0] in gameBoards.keys()
+    #assert args[0] in gameBoards.keys()
+
+    if args[0] not in gameBoards.keys():
+        return 'game %s does not exist\n' % (args[0])
 
     gameBoards[args[0]].addPlayer(client)
     client.game = gameBoards[args[0]]
 
-    return 'joined game %s' % args[0]
+    return 'joined game %s\n' % args[0]
 
 def setNick(client, *args):
     if not args:
@@ -81,6 +84,27 @@ def printAsciiBoard(client, *args):
 
     return client.game.board.asciiBoard()
 
+def printFloatingTile(client, *args):
+    if not client.game:
+        return 'need to join a game\n'
+
+    if not client.game.board:
+        return 'need to start the game\n'
+
+    return client.game.board.floatingTile.asciiTile()
+
+
+def rotateFloatingTile(client, *args):
+    if len(args) != 1:
+        return 'need a direction to rotate\n'
+
+    if args[0] == '1':
+        client.game.board.floatingTile.rotateClockwise()
+    elif args[0] == '2':
+        client.game.board.floatingTile.rotateCounterClockwise()
+
+    return ''
+
 def printBoard(client, *args):
     if not client.game: 
         return 'need to join a game\n'
@@ -107,10 +131,15 @@ def moveRow(client, *args):
         return 'need to specify a row and direction'
 
     #return str(client.getPlayerNumber()) + '\n'
+    print "player %d pushed row" % client.getPlayerNumber()
+    print client
     try:
         client.game.board.moveRow(client.getPlayerNumber(), row, dir)
     except board.BoardMovementError, msg:
         return str(msg) + '\n'
+
+    buf = "%s pushed the floating tile" % client.name
+    notifyBoardChanged(client, buf)
 
     return ''
 
@@ -135,7 +164,15 @@ def moveColumn(client, *args):
     except board.BoardMovementError, msg:
         return str(msg) + '\n'
 
+    buf = "%s pushed the floating tile" % client.name
+    notifyBoardChanged(client, buf)
+
     return ''
+
+def notifyBoardChanged(client, msg):
+    for player in client.game.players:
+        if player:
+            player.send(msg + "\n")
 
 
 def movePlayer(client, *args):
@@ -147,7 +184,7 @@ def movePlayer(client, *args):
         col = int(args[0])
         row = int(args[1])
     except ValueError:
-        return 'need to specify a row and column\n'
+        return 'need to specify a column and row\n'
 
     try:
         client.game.board.movePlayer(client.getPlayerNumber(), col, row)
@@ -197,8 +234,10 @@ class NetworkGame(object):
         if not count:
             return None
         else:
+            buf = '%s has joined the game.\n' % networkPlayer.name
             for player in self.players:
-                player.send('%s has joined the game.' % networkPlayer.name)
+                if player:
+                    player.send(buf)
 
 def createUniqueKey():
     '''Build a random game key w/ a 16 bit md5 digest'''
@@ -215,7 +254,14 @@ class NetworkPlayer(object):
     def getPlayerNumber(self):
         assert self.game.board
 
-        return self.game.players.index(self) + 1
+        count = 1
+        for player in self.game.players:
+            if player == self:
+                return count
+
+            count += 1
+
+        return -1
 
     def send(self, msg):
         self.client.send(msg)
@@ -233,6 +279,8 @@ commandDict = {
     '/pushcolumn' : moveColumn,
     '/move' : movePlayer,
     '/end' : endTurn,
+    '/ft' : printFloatingTile,
+    '/rotate' : rotateFloatingTile,
 }
 
 
@@ -258,6 +306,8 @@ def main():
                 clientDict[client] = NetworkPlayer('Unknown', client, address)
                 buf = "%s joined (%s)\n" % (clientDict[client].name, address[0])
                 print buf.rstrip()
+                print client
+                print clientDict
 
             elif sock == sys.stdin:
                 sys.stdin.readline()
@@ -272,7 +322,9 @@ def main():
                         print tokens
                         cmd = commandDict.get(tokens[0])
                         if cmd:
-                            sock.send(cmd(clientDict[client], *tokens[1:]))
+                            sock.send(cmd(clientDict[sock], *tokens[1:]))
+                        else:
+                            sock.send('Unknown command %s\n' % tokens[0])
                 else:
                     buf = "%s left\n" % clientDict[sock].name
                     sock.close()
