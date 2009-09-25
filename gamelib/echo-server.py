@@ -17,6 +17,17 @@ size = 1024
 VALID_CHARS = string.ascii_letters + string.digits
 NICK_LENGTH = 10
 
+ERROR_JOIN_GAME = 'ERROR: need to join a game\n'
+ERROR_START_GAME = 'ERROR: need to start the game\n'
+ERROR_ROTATE_DIRECTION = 'ERROR: need a direction to rotate\n'
+ERROR_ROW_DIRECTION = 'ERROR: need to specify a row and direction\n'
+ERROR_COLUMN_DIRECTION = 'ERROR: need to specify a column and direction\n'
+ERROR_COLUMN_ROW = 'ERROR: need to specify a column and row\n'
+ERROR_NICK_CHARS = 'ERROR: name must be ascii letters and numbers\n'
+ERROR_JOIN_GAME = 'ERROR: need to join game\n'
+ERROR_UNKNOWN_COMMAND = 'ERROR: unknown command %s\n'
+
+
 gameBoards = {}
 clientDict = {}
 
@@ -32,10 +43,15 @@ def joinGame(client, *args):
     if args[0] not in gameBoards.keys():
         return 'game %s does not exist\n' % (args[0])
 
-    gameBoards[args[0]].addPlayer(client)
-    client.game = gameBoards[args[0]]
+    if not gameBoards[args[0]].addPlayer(client):
+        return ERROR_JOIN_GAME
+    else:
+        client.game = gameBoards[args[0]]
 
-    return 'joined game %s\n' % args[0]
+        buf = '%s has joined the game.' % client.name
+        notifyPlayers(client, buf)
+
+    return ''
 
 def setNick(client, *args):
     if not args:
@@ -45,7 +61,7 @@ def setNick(client, *args):
         
     for c in args[0]:
         if c not in VALID_CHARS:
-            return 'name must be ascii letters and numbers\n'
+            return ERROR_NICK_CHARS
 
     client.name = args[0] 
     return 'name changed to %s\n' % (client.name)
@@ -54,9 +70,12 @@ def startGame(client, *args):
     # XXX - only allow starting by the person who created the game?
 
     if not client.game:
-        return 'need to join a game\n'
+        return ERROR_JOIN_GAME
 
     client.game.board.createBoard(client.game.playerCount)
+
+    buf = '%s has started the game.' % client.name
+    notifyPlayers(client, buf)
 
     return ''
 
@@ -77,58 +96,68 @@ def newGame(client, *args):
 
 def printAsciiBoard(client, *args):
     if not client.game:
-        return 'need to join a game\n'
+        return ERROR_JOIN_GAME
 
-    if not client.game.board:
-        return 'need to start the game\n'
+    if not hasattr(client.game.board, 'board'):
+        return ERROR_START_GAME
 
     return client.game.board.asciiBoard()
 
 def printFloatingTile(client, *args):
     if not client.game:
-        return 'need to join a game\n'
+        return ERROR_JOIN_GAME
 
-    if not client.game.board:
-        return 'need to start the game\n'
+    if not hasattr(client.game.board, 'board'):
+        return ERROR_START_GAME
 
     return client.game.board.floatingTile.asciiTile()
 
 
 def rotateFloatingTile(client, *args):
-    if len(args) != 1:
-        return 'need a direction to rotate\n'
+    if not client.game:
+        return ERROR_JOIN_GAME
 
-    if args[0] == '1':
-        client.game.board.floatingTile.rotateClockwise()
-    elif args[0] == '2':
-        client.game.board.floatingTile.rotateCounterClockwise()
+    if not hasattr(client.game.board, 'board'):
+        return ERROR_START_GAME
+
+    if len(args) != 1:
+        return ERROR_ROTATE_DIRECTION
+
+    try:
+        if args[0].lower() in ['1', 'clockwise', 'clock']:
+            client.game.board.floatingTile.rotateClockwise()
+        elif args[0].lower in ['2', 'counterclockwise', 'counter']:
+            client.game.board.floatingTile.rotateCounterClockwise()
+    except:
+        # XXX - shouldn't be able to rotate out of turn
+        pass
 
     return ''
 
 def printBoard(client, *args):
-    if not client.game: 
-        return 'need to join a game\n'
+    if not client.game:
+        return ERROR_JOIN_GAME
 
-    if not client.game.board:
-        return 'need to start the game\n'
+    if not hasattr(client.game.board, 'board'):
+        return ERROR_START_GAME
 
     return client.game.board.serialize()
 
 def moveRow(client, *args):
-    if not client.game: 
-        return 'need to join a game\n'
+    if not client.game:
+        return ERROR_JOIN_GAME
 
-    if not client.game.board:
-        return 'need to start the game\n'
+    if not hasattr(client.game.board, 'board'):
+        return ERROR_START_GAME
 
     if len(args) != 2:
-        return 'need to specify a row and direction'
+        return ERROR_ROW_DIRECTION
 
     try:
         row = int(args[0])
         dir = int(args[1])
     except ValueError:
-        return 'need to specify a row and direction'
+        return ERROR_ROW_DIRECTION
 
     #return str(client.getPlayerNumber()) + '\n'
     print "player %d pushed row" % client.getPlayerNumber()
@@ -136,60 +165,60 @@ def moveRow(client, *args):
     try:
         client.game.board.moveRow(client.getPlayerNumber(), row, dir)
     except board.BoardMovementError, msg:
-        return str(msg) + '\n'
+        return "ERROR: %s\n" % str(msg)
 
     buf = "%s pushed the floating tile" % client.name
-    notifyBoardChanged(client, buf)
+    notifyPlayers(client, buf)
 
     return ''
 
 def moveColumn(client, *args):
-    if not client.game: 
-        return 'need to join a game\n'
+    if not client.game:
+        return ERROR_JOIN_GAME
 
-    if not client.game.board:
-        return 'need to start the game\n'
+    if not hasattr(client.game.board, 'board'):
+        return ERROR_START_GAME
 
     if len(args) != 2:
-        return 'need to specify a column and direction'
+        return ERROR_COLUMN_DIRECTION
 
     try:
         col = int(args[0])
         dir = int(args[1])
     except ValueError:
-        return 'need to specify a column and direction'
+        return ERROR_COLUMN_DIRECTION
 
     try:
         client.game.board.moveColumn(client.getPlayerNumber(), col, dir)
     except board.BoardMovementError, msg:
-        return str(msg) + '\n'
+        return "ERROR: %s\n" % str(msg)
 
     buf = "%s pushed the floating tile" % client.name
-    notifyBoardChanged(client, buf)
+    notifyPlayers(client, buf)
 
     return ''
 
-def notifyBoardChanged(client, msg):
+def notifyPlayers(client, msg):
     for player in client.game.players:
         if player:
-            player.send(msg + "\n")
+            player.send("*** %s\n" % msg)
 
 
 def movePlayer(client, *args):
 
     if len(args) != 2:
-        return 'need to specify a row and column\n'
+        return ERROR_COLUMN_ROW
 
     try:
         col = int(args[0])
         row = int(args[1])
     except ValueError:
-        return 'need to specify a column and row\n'
+        return ERROR_COLUMN_ROW
 
     try:
         client.game.board.movePlayer(client.getPlayerNumber(), col, row)
     except board.PlayerMovementError, msg:
-        return str(msg) + '\n'
+        return "ERROR: %s\n" % str(msg)
 
     return ''
 
@@ -197,7 +226,7 @@ def endTurn(client, *args):
     try:
         client.game.board.endTurn(client.getPlayerNumber())
     except board.PlayerTurnError, msg:
-        return str(msg) + '\n'
+        return "ERROR: %s\n" % str(msg)
 
     return ''
 
@@ -232,12 +261,10 @@ class NetworkGame(object):
                 break
 
         if not count:
-            return None
-        else:
-            buf = '%s has joined the game.\n' % networkPlayer.name
-            for player in self.players:
-                if player:
-                    player.send(buf)
+            return False
+
+        return True
+
 
 def createUniqueKey():
     '''Build a random game key w/ a 16 bit md5 digest'''
@@ -324,7 +351,7 @@ def main():
                         if cmd:
                             sock.send(cmd(clientDict[sock], *tokens[1:]))
                         else:
-                            sock.send('Unknown command %s\n' % tokens[0])
+                            sock.send(ERROR_UNKNOWN_COMMAND % tokens[0])
                 else:
                     buf = "%s left\n" % clientDict[sock].name
                     sock.close()
