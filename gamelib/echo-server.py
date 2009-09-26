@@ -24,7 +24,7 @@ ERROR_ROW_DIRECTION = 'ERROR: need to specify a row and direction\n'
 ERROR_COLUMN_DIRECTION = 'ERROR: need to specify a column and direction\n'
 ERROR_COLUMN_ROW = 'ERROR: need to specify a column and row\n'
 ERROR_NICK_CHARS = 'ERROR: name must be ascii letters and numbers\n'
-ERROR_JOIN_GAME = 'ERROR: need to join game\n'
+ERROR_JOIN_GAME = 'ERROR: need to join or create a new game\n'
 ERROR_UNKNOWN_COMMAND = 'ERROR: unknown command %s\n'
 
 
@@ -40,13 +40,17 @@ def listGames(client, *args):
 def joinGame(client, *args):
     #assert args[0] in gameBoards.keys()
 
+    print "joining game"
     if args[0] not in gameBoards.keys():
         return 'game %s does not exist\n' % (args[0])
 
     if not gameBoards[args[0]].addPlayer(client):
+        print "couldn't join"
         return ERROR_JOIN_GAME
     else:
+        print "trying to join"
         client.game = gameBoards[args[0]]
+        print gameBoards[args[0]]
 
         buf = '%s has joined the game.' % client.name
         notifyPlayers(client, buf)
@@ -203,6 +207,9 @@ def notifyPlayers(client, msg):
         if player:
             player.send("*** %s\n" % msg)
 
+def notifyPlayer(client, player, msg):
+    client.game.players[player-1].send("*** %s\n" % msg)
+
 
 def movePlayer(client, *args):
 
@@ -220,6 +227,9 @@ def movePlayer(client, *args):
     except board.PlayerMovementError, msg:
         return "ERROR: %s\n" % str(msg)
 
+    buf = "%s moved to (%d, %d)" % (client.name, col, row)
+    notifyPlayers(client, buf)
+
     return ''
 
 def endTurn(client, *args):
@@ -227,6 +237,11 @@ def endTurn(client, *args):
         client.game.board.endTurn(client.getPlayerNumber())
     except board.PlayerTurnError, msg:
         return "ERROR: %s\n" % str(msg)
+
+    buf = "%s ended the turn" % client.name
+    notifyPlayers(client, buf)
+
+    notifyPlayer(client, client.game.board.playerTurn, "It's your turn")
 
     return ''
 
@@ -255,15 +270,15 @@ class NetworkGame(object):
     def addPlayer(self, networkPlayer):
         assert self.playerCount <= len(self.players)
 
+        addedPlayer = False
+
         for count, player in enumerate(self.players):
             if not player:
                 self.players[count] = networkPlayer
+                addedPlayer = True
                 break
 
-        if not count:
-            return False
-
-        return True
+        return addedPlayer
 
 
 def createUniqueKey():
@@ -294,6 +309,13 @@ class NetworkPlayer(object):
         self.client.send(msg)
 
 
+def debug(exceptType, value, tb):
+    import traceback, pdb
+    traceback.print_exception(exceptType, value, tb)
+    print
+
+    pdb.pm()
+
 commandDict = {
     '/list' : listGames,
     '/join' : joinGame,
@@ -310,8 +332,10 @@ commandDict = {
     '/rotate' : rotateFloatingTile,
 }
 
-
 def main():
+
+    sys.excepthook = debug
+
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((host, port))
     server.listen(backlog)
