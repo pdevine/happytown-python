@@ -26,7 +26,15 @@ ERROR_COLUMN_ROW = 'ERROR: need to specify a column and row\n'
 ERROR_NICK_CHARS = 'ERROR: name must be ascii letters and numbers\n'
 ERROR_JOIN_GAME = 'ERROR: need to join or create a new game\n'
 ERROR_UNKNOWN_COMMAND = 'ERROR: unknown command %s\n'
-
+ERROR_SPECIFY_NICK = 'ERROR: need to specify a nick name\n'
+ERROR_NICK_MAX_CHARS = 'ERROR: nick name must be less than %d\n'
+ERROR_EXISTING_NICK = 'ERROR: that nick name is already taken\n'
+ERROR_UNKNOWN_NICK_CREATE = \
+    'ERROR: you must specify a nick before creating a new game\n'
+ERROR_UNKNOWN_NICK_START = \
+    'ERROR: you must specify a nick before starting a new game\n'
+ERROR_UNKNOWN_GAME = 'ERROR: game %s does not exist\n'
+ERROR_GAME_JOINED = 'ERROR: already joined a game\n'
 
 gameBoards = {}
 clientDict = {}
@@ -40,35 +48,52 @@ def listGames(client, *args):
 def joinGame(client, *args):
     #assert args[0] in gameBoards.keys()
 
-    print "joining game"
+    if client.name == 'Unknown':
+        return ERROR_UNKNOWN_NICK_START
+
     if args[0] not in gameBoards.keys():
-        return 'game %s does not exist\n' % (args[0])
+        return ERROR_UNKNOWN_GAME % args[0]
 
     if not gameBoards[args[0]].addPlayer(client):
-        print "couldn't join"
         return ERROR_JOIN_GAME
     else:
-        print "trying to join"
         client.game = gameBoards[args[0]]
-        print gameBoards[args[0]]
 
         buf = '%s has joined the game.' % client.name
         notifyPlayers(client, buf)
 
     return ''
 
+def leaveGame(client, *args):
+    pass
+
 def setNick(client, *args):
     if not args:
-        return 'need to specify a name\n'
+        return ERROR_SPECIFY_NICK
     elif len(args[0]) > NICK_LENGTH:
-        return 'name must be less than %d\n' % NICK_LENGTH
-        
-    for c in args[0]:
+        return ERROR_NICK_MAX_CHARS % NICK_LENGTH
+
+    oldName = client.name
+    newName = args[0]
+
+    for c in newName:
         if c not in VALID_CHARS:
             return ERROR_NICK_CHARS
 
-    client.name = args[0] 
-    return 'name changed to %s\n' % (client.name)
+    if lookupNick(newName):
+        return ERROR_EXISTING_NICK
+
+    client.name = newName
+    buf = '%s changed nick to %s' % (oldName, client.name)
+    notifyAllPlayers(buf)
+
+    return ''
+    
+def lookupNick(nick):
+    for client in clientDict.keys():
+        if clientDict[client].name == nick:
+            return clientDict[client]
+    return None
 
 def startGame(client, *args):
     # XXX - only allow starting by the person who created the game?
@@ -86,6 +111,12 @@ def startGame(client, *args):
 def newGame(client, *args):
     global gameBoards
 
+    if client.name == 'Unknown':
+        return ERROR_UNKNOWN_NICK_CREATE
+
+    if hasattr(client, 'game'):
+        return ERROR_GAME_JOINED
+
     while True:
         gameKey = createUniqueKey()
         gameBoard = gameBoards.get(gameKey, None)
@@ -93,6 +124,9 @@ def newGame(client, *args):
         if not gameBoard:
             gameBoards[gameKey] = NetworkGame()
             break
+
+    buf = "%s has created new game %s" % (client.name, gameKey)
+    notifyAllPlayers(buf)
 
     joinGame(client, gameKey)
 
@@ -210,6 +244,10 @@ def notifyPlayers(client, msg):
 def notifyPlayer(client, player, msg):
     client.game.players[player-1].send("*** %s\n" % msg)
 
+def notifyAllPlayers(msg):
+    for client in clientDict.keys():
+        clientDict[client].send("*** %s\n" % msg)
+
 
 def movePlayer(client, *args):
 
@@ -322,6 +360,7 @@ commandDict = {
     '/nick' : setNick,
     '/new' : newGame,
     '/start' : startGame,
+    '/leave' : leaveGame,
     '/asciiboard' : printAsciiBoard,
     '/board' : printBoard,
     '/pushrow' : moveRow,
@@ -373,7 +412,9 @@ def main():
                         print tokens
                         cmd = commandDict.get(tokens[0])
                         if cmd:
-                            sock.send(cmd(clientDict[sock], *tokens[1:]))
+                            buf = cmd(clientDict[sock], *tokens[1:])
+                            if buf:
+                                sock.send(buf)
                         else:
                             sock.send(ERROR_UNKNOWN_COMMAND % tokens[0])
                 else:
