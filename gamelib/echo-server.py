@@ -27,6 +27,7 @@ ERROR_NICK_CHARS = 'ERROR: name must be ascii letters and numbers\n'
 ERROR_JOIN_GAME = 'ERROR: need to join or create a new game\n'
 ERROR_UNKNOWN_COMMAND = 'ERROR: unknown command %s\n'
 ERROR_SPECIFY_NICK = 'ERROR: need to specify a nick name\n'
+ERROR_SPECIFY_GAME = 'ERROR: need to specify a game to join\n'
 ERROR_NICK_MAX_CHARS = 'ERROR: nick name must be less than %d\n'
 ERROR_EXISTING_NICK = 'ERROR: that nick name is already taken\n'
 ERROR_UNKNOWN_NICK_CREATE = \
@@ -35,6 +36,8 @@ ERROR_UNKNOWN_NICK_START = \
     'ERROR: you must specify a nick before starting a new game\n'
 ERROR_UNKNOWN_GAME = 'ERROR: game %s does not exist\n'
 ERROR_GAME_JOINED = 'ERROR: already joined a game\n'
+ERROR_NEED_PLAYERS = 'ERROR: need more players to start the game\n'
+ERROR_GAME_STARTED = 'ERROR: game already started\n'
 
 gameBoards = {}
 clientDict = {}
@@ -51,8 +54,19 @@ def joinGame(client, *args):
     if client.name == 'Unknown':
         return ERROR_UNKNOWN_NICK_START
 
-    if args[0] not in gameBoards.keys():
-        return ERROR_UNKNOWN_GAME % args[0]
+    if not args:
+        return ERROR_SPECIFY_GAME
+
+    gameKey = args[0]
+
+    if hasattr(client, 'game') and hasattr(client.game, 'board'):
+        return ERROR_GAME_JOINED
+
+    if gameKey not in gameBoards.keys():
+        return ERROR_UNKNOWN_GAME % gameKey
+
+    if hasattr(gameBoards[gameKey].board, 'board'):
+        return ERROR_GAME_STARTED
 
     if not gameBoards[args[0]].addPlayer(client):
         return ERROR_JOIN_GAME
@@ -87,7 +101,7 @@ def setNick(client, *args):
     buf = '%s changed nick to %s' % (oldName, client.name)
     notifyAllPlayers(buf)
 
-    return ''
+    return "*** You are now known as %s\n" % client.name
     
 def lookupNick(nick):
     for client in clientDict.keys():
@@ -101,10 +115,20 @@ def startGame(client, *args):
     if not client.game:
         return ERROR_JOIN_GAME
 
-    client.game.board.createBoard(client.game.playerCount)
+    if hasattr(client.game.board, 'board'):
+        return ERROR_GAME_STARTED
+
+    try:
+        client.game.board.createBoard(client.game.playerCount)
+    except board.BoardCreationError, msg:
+        return ERROR_NEED_PLAYERS
 
     buf = '%s has started the game.' % client.name
     notifyPlayers(client, buf)
+
+    # the player who starts the game isn't always the player whose turn
+    # it is first
+    notifyPlayer(client, client.game.board.playerTurn, "It's your turn")
 
     return ''
 
@@ -114,7 +138,7 @@ def newGame(client, *args):
     if client.name == 'Unknown':
         return ERROR_UNKNOWN_NICK_CREATE
 
-    if hasattr(client, 'game'):
+    if hasattr(client, 'game') and hasattr(client.game, 'board'):
         return ERROR_GAME_JOINED
 
     while True:
@@ -197,9 +221,6 @@ def moveRow(client, *args):
     except ValueError:
         return ERROR_ROW_DIRECTION
 
-    #return str(client.getPlayerNumber()) + '\n'
-    print "player %d pushed row" % client.getPlayerNumber()
-    print client
     try:
         client.game.board.moveRow(client.getPlayerNumber(), row, dir)
     except board.BoardMovementError, msg:
@@ -396,8 +417,6 @@ def main():
                 clientDict[client] = NetworkPlayer('Unknown', client, address)
                 buf = "%s joined (%s)\n" % (clientDict[client].name, address[0])
                 print buf.rstrip()
-                print client
-                print clientDict
 
             elif sock == sys.stdin:
                 sys.stdin.readline()
