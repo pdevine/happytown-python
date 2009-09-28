@@ -202,9 +202,9 @@ class Board(object):
         self.board = []
         self.players = []
 
-        #if players < 2:
-        #    raise BoardCreationError(
-        #        "Must have 2 or more players to start a game")
+        if players < 2:
+            raise BoardCreationError(
+                "Must have 2 or more players to start a game")
 
         # players are enumerated from 1
         for player in range(1, players+1):
@@ -212,7 +212,8 @@ class Board(object):
             playerObj.createPlayer()
             self.players.append(playerObj)
 
-        self.playerTurn = 1
+        # choose a person to start
+        self.playerTurn = random.randint(1, players)
         self.floatingTilePushed = False
 
         def randomTileType():

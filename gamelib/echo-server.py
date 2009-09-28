@@ -59,7 +59,7 @@ def joinGame(client, *args):
 
     gameKey = args[0]
 
-    if hasattr(client, 'game') and hasattr(client.game, 'board'):
+    if client.game and hasattr(client.game, 'board'):
         return ERROR_GAME_JOINED
 
     if gameKey not in gameBoards.keys():
@@ -68,10 +68,10 @@ def joinGame(client, *args):
     if hasattr(gameBoards[gameKey].board, 'board'):
         return ERROR_GAME_STARTED
 
-    if not gameBoards[args[0]].addPlayer(client):
+    if not gameBoards[gameKey].addPlayer(client):
         return ERROR_JOIN_GAME
     else:
-        client.game = gameBoards[args[0]]
+        client.game = gameBoards[gameKey]
 
         buf = '%s has joined the game.' % client.name
         notifyPlayers(client, buf)
@@ -79,7 +79,28 @@ def joinGame(client, *args):
     return ''
 
 def leaveGame(client, *args):
-    pass
+    if not client.game:
+        return ERROR_JOIN_GAME
+
+    buf = '%s has left the game.' % client.name
+    notifyPlayers(client, buf)
+
+    # XXX - need to make a call out to the board to tell it that we're no
+    #       longer joined -- this could result in the game being won
+
+    client.game.players.remove(client)
+    cleanupGame(client.game.gameKey)
+    client.game = None
+
+def cleanupGame(gameKey):
+    game = clientDict.get(gameKey)
+
+    if game:
+        for player in game.players:
+            if player:
+                return
+
+    del gameBoards[gameKey]
 
 def setNick(client, *args):
     if not args:
@@ -146,7 +167,7 @@ def newGame(client, *args):
         gameBoard = gameBoards.get(gameKey, None)
 
         if not gameBoard:
-            gameBoards[gameKey] = NetworkGame()
+            gameBoards[gameKey] = NetworkGame(gameKey)
             break
 
     buf = "%s has created new game %s" % (client.name, gameKey)
@@ -305,10 +326,11 @@ def endTurn(client, *args):
     return ''
 
 class NetworkGame(object):
-    def __init__(self):
+    def __init__(self, gameKey):
         self.board = board.Board()
         self.players = [None, None, None, None]
         self.started = False
+        self.gameKey = gameKey
 
     def getPlayerCount(self):
         count = 0
