@@ -14,6 +14,8 @@ port = 50001
 backlog = 5
 size = 1024
 
+TIMEOUT = 5
+
 VALID_CHARS = string.ascii_letters + string.digits
 NICK_LENGTH = 10
 
@@ -434,7 +436,17 @@ def main():
     sys.excepthook = debug
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((host, port))
+
+    while True:
+        try:
+            print "Starting server on %s %d" % (host, port)
+            server.bind((host, port))
+        except:
+            print "Port in use.  Trying again in %d seconds." % TIMEOUT
+            time.sleep(TIMEOUT)
+        else:
+            break
+
     server.listen(backlog)
 
     input = [server, sys.stdin]

@@ -29,6 +29,7 @@ PLAYER_BIT_VALUES = (
 )
 
 import traverse
+import string
 
 class BoardMovementError(Exception):
     pass
@@ -196,15 +197,16 @@ class BoardItem(object):
 
 class Board(object):
 
-    def createBoard(self, players, rows=ROWS, columns=COLUMNS):
+    def createBoard(self, players, rows=ROWS, columns=COLUMNS,
+                    itemsPerPlayer=3):
+        if players < 2:
+            raise BoardCreationError(
+                "Must have 2 or more players to start a game")
+
         self.rows = rows
         self.columns = columns
         self.board = []
         self.players = []
-
-        if players < 2:
-            raise BoardCreationError(
-                "Must have 2 or more players to start a game")
 
         # players are enumerated from 1
         for player in range(1, players+1):
@@ -234,7 +236,20 @@ class Board(object):
         self.setPlayerHomeTile(columns-1, 0, TILE_L, 1, 3)
         self.setPlayerHomeTile(0, rows-1, TILE_L, 3, 4)
 
+        for itemNumber in range(0, itemsPerPlayer*players):
+            tile = self._findFreeTileForItem()
+            tile.boardItem = BoardItem(itemNumber)
+
         self.floatingTile = Tile(randomTileType(), 0)
+
+    def _findFreeTileForItem(self):
+        '''Find a free tile off the edges of the board'''
+        while True:
+            row = random.randint(1, self.rows-2)
+            column = random.randint(1, self.columns-2)
+
+            if not self.board[row][column].boardItem:
+                return self.board[row][column]
 
     def setPlayerHomeTile(self, column, row, tile, rotation, player):
         self.board[row][column].setTypeAndRotation(tile, rotation)
