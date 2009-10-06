@@ -195,6 +195,19 @@ def printFloatingTile(client, *args):
 
     return client.game.board.floatingTile.asciiTile()
 
+def printHelp(client, *args):
+    return 'XXX - Not Implemented\n'
+
+def listUsers(client, *args):
+    buf = []
+    for userKey in clientDict.keys():
+        user = clientDict[userKey]
+        if user.game:
+            buf.append('%s : %s' % (user.name, user.game.gameKey))
+        else:
+            buf.append('%s : No Game' % user.name)
+
+    return '\n'.join(buf) + '\n'
 
 def rotateFloatingTile(client, *args):
     if not client.game:
@@ -399,6 +412,7 @@ def debug(exceptType, value, tb):
 
 commandDict = {
     '/list' : listGames,
+    '/users' : listUsers,
     '/join' : joinGame,
     '/nick' : setNick,
     '/new' : newGame,
@@ -412,6 +426,7 @@ commandDict = {
     '/end' : endTurn,
     '/ft' : printFloatingTile,
     '/rotate' : rotateFloatingTile,
+    '/help' : printHelp,
 }
 
 def main():
