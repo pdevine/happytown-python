@@ -49,6 +49,16 @@ ERROR_GAME_STARTED = 'ERROR: game already started\n'
 
 TEXT_SET_NICK = "*** You are now known as %s\n"
 TEXT_JOIN_GAME = "*** You have joined game %s\n"
+TEXT_YOUR_TURN = "*** It's your turn\n"
+TEXT_PLAYER_NUMBER = "*** You are player number %d\n"
+TEXT_PLAYER_JOINED_GAME = "*** %s has joined the game\n"
+TEXT_PLAYER_LEFT_GAME = "*** %s has left the game\n"
+TEXT_PLAYER_CHANGED_NICK = "%s changed nick to %s\n"
+TEXT_PLAYER_STARTED_GAME = "*** %s has started the game\n"
+TEXT_PLAYER_CREATED_GAME = "*** %s has created new game %s\n"
+TEXT_PLAYER_PUSHED_TILE = "*** %s pushed the floating tile\n"
+TEXT_PLAYER_MOVED = "*** %s moved to (%d, %d)\n"
+TEXT_PLAYER_ENDED_TURN = "*** %s ended the turn\n"
 
 gameBoards = {}
 clientDict = {}
@@ -84,8 +94,7 @@ def joinGame(client, *args):
     else:
         client.game = gameBoards[gameKey]
 
-        buf = '%s has joined the game.' % client.name
-        notifyPlayers(client, buf)
+        notifyPlayers(client, TEXT_PLAYER_JOINED_GAME % client.name)
 
     return TEXT_JOIN_GAME % gameKey
 
@@ -93,8 +102,7 @@ def leaveGame(client, *args):
     if not client.game:
         return ERROR_JOIN_GAME
 
-    buf = '%s has left the game.' % client.name
-    notifyPlayers(client, buf)
+    notifyPlayers(client, TEXT_PLAYER_LEFT_GAME % client.name)
 
     # XXX - need to make a call out to the board to tell it that we're no
     #       longer joined -- this could result in the game being won
@@ -130,8 +138,7 @@ def setNick(client, *args):
         return ERROR_EXISTING_NICK
 
     client.name = newName
-    buf = '%s changed nick to %s' % (oldName, client.name)
-    notifyAllPlayers(buf)
+    notifyAllPlayers(TEXT_PLAYER_CHANGED_NICK % (oldName, client.name))
 
     return TEXT_SET_NICK % client.name
     
@@ -155,12 +162,15 @@ def startGame(client, *args):
     except board.BoardCreationError, msg:
         return ERROR_NEED_PLAYERS
 
-    buf = '%s has started the game.' % client.name
-    notifyPlayers(client, buf)
+    notifyPlayers(client, TEXT_PLAYER_STARTED_GAME % client.name)
+
+    for count, player in enumerate(client.game.players):
+        if player:
+            notifyPlayer(client, count+1, TEXT_PLAYER_NUMBER % (count+1))
 
     # the player who starts the game isn't always the player whose turn
     # it is first
-    notifyPlayer(client, client.game.board.playerTurn, "It's your turn")
+    notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
 
     return ''
 
@@ -181,12 +191,11 @@ def newGame(client, *args):
             gameBoards[gameKey] = NetworkGame(gameKey)
             break
 
-    buf = "%s has created new game %s" % (client.name, gameKey)
-    notifyAllPlayers(buf)
+    notifyAllPlayers(TEXT_PLAYER_CREATED_GAME % (client.name, gameKey))
 
     joinGame(client, gameKey)
 
-    return gameKey + '\n'
+    return ''
 
 def printAsciiBoard(client, *args):
     if not client.game:
@@ -195,7 +204,16 @@ def printAsciiBoard(client, *args):
     if not hasattr(client.game.board, 'board'):
         return ERROR_START_GAME
 
-    return client.game.board.asciiBoard()
+    asciiBoard = client.game.board.asciiBoard()
+    rows = []
+    for count, row in enumerate(asciiBoard.split('\n')):
+        if row:
+            if count > 0:
+                rows.append("    " + row)
+            else:
+                rows.append(row)
+
+    return '\n'.join(rows) + '\n'
 
 def printFloatingTile(client, *args):
     if not client.game:
@@ -271,8 +289,7 @@ def moveRow(client, *args):
     except board.BoardMovementError, msg:
         return "ERROR: %s\n" % str(msg)
 
-    buf = "%s pushed the floating tile" % client.name
-    notifyPlayers(client, buf)
+    notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
 
     return ''
 
@@ -297,22 +314,21 @@ def moveColumn(client, *args):
     except board.BoardMovementError, msg:
         return "ERROR: %s\n" % str(msg)
 
-    buf = "%s pushed the floating tile" % client.name
-    notifyPlayers(client, buf)
+    notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
 
     return ''
 
 def notifyPlayers(client, msg):
     for player in client.game.players:
         if player:
-            player.send("*** %s\n" % msg)
+            player.send(msg)
 
 def notifyPlayer(client, player, msg):
-    client.game.players[player-1].send("*** %s\n" % msg)
+    client.game.players[player-1].send(msg)
 
 def notifyAllPlayers(msg):
     for client in clientDict.keys():
-        clientDict[client].send("*** %s\n" % msg)
+        clientDict[client].send(msg)
 
 
 def movePlayer(client, *args):
@@ -331,8 +347,7 @@ def movePlayer(client, *args):
     except board.PlayerMovementError, msg:
         return "ERROR: %s\n" % str(msg)
 
-    buf = "%s moved to (%d, %d)" % (client.name, col, row)
-    notifyPlayers(client, buf)
+    notifyPlayers(client, TEXT_PLAYER_MOVED % (client.name, col, row))
 
     return ''
 
@@ -342,10 +357,9 @@ def endTurn(client, *args):
     except board.PlayerTurnError, msg:
         return "ERROR: %s\n" % str(msg)
 
-    buf = "%s ended the turn" % client.name
-    notifyPlayers(client, buf)
+    notifyPlayers(client, TEXT_PLAYER_ENDED_TURN % client.name)
 
-    notifyPlayer(client, client.game.board.playerTurn, "It's your turn")
+    notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
 
     return ''
 
