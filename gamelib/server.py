@@ -50,6 +50,8 @@ ERROR_GAME_STARTED = 'ERROR: game already started\n'
 TEXT_SET_NICK = "*** You are now known as %s\n"
 TEXT_JOIN_GAME = "*** You have joined game %s\n"
 TEXT_YOUR_TURN = "*** It's your turn\n"
+TEXT_YOU_WIN = "*** You won the game!\n"
+TEXT_PLAYER_WON = "*** %s has won the game!\n"
 TEXT_PLAYER_NUMBER = "*** You are player number %d\n"
 TEXT_PLAYER_JOINED_GAME = "*** %s has joined the game\n"
 TEXT_PLAYER_LEFT_GAME = "*** %s has left the game\n"
@@ -222,7 +224,15 @@ def printFloatingTile(client, *args):
     if not hasattr(client.game.board, 'board'):
         return ERROR_START_GAME
 
-    return client.game.board.floatingTile.asciiTile()
+    ft = client.game.board.floatingTile.asciiTile()
+    rows = []
+    for count, row in enumerate(ft.split('\n')):
+        if row:
+            if count > 0:
+                rows.append("    " + row)
+            else:
+                rows.append(row)
+    return '\n'.join(rows) + '\n'
 
 def printHelp(client, *args):
     return 'XXX - Not Implemented\n'
@@ -286,7 +296,7 @@ def moveRow(client, *args):
 
     try:
         client.game.board.moveRow(client.getPlayerNumber(), row, dir)
-    except board.BoardMovementError, msg:
+    except (board.BoardMovementError, board.BoardGameOverError), msg:
         return "ERROR: %s\n" % str(msg)
 
     notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
@@ -311,7 +321,7 @@ def moveColumn(client, *args):
 
     try:
         client.game.board.moveColumn(client.getPlayerNumber(), col, dir)
-    except board.BoardMovementError, msg:
+    except(board.BoardMovementError, board.GameOverError), msg:
         return "ERROR: %s\n" % str(msg)
 
     notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
@@ -352,14 +362,19 @@ def movePlayer(client, *args):
     return ''
 
 def endTurn(client, *args):
+    # XXX - notify if a board item was picked up
+
     try:
         client.game.board.endTurn(client.getPlayerNumber())
     except board.PlayerTurnError, msg:
         return "ERROR: %s\n" % str(msg)
 
-    notifyPlayers(client, TEXT_PLAYER_ENDED_TURN % client.name)
-
-    notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
+    if client.game.board.gameOver:
+        notifyPlayers(client, TEXT_PLAYER_WON % client.name)
+        return TEXT_YOU_WIN
+    else:
+        notifyPlayers(client, TEXT_PLAYER_ENDED_TURN % client.name)
+        notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
 
     return ''
 

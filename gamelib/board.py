@@ -46,6 +46,9 @@ class PlayerMovementError(Exception):
 class PlayerLocationError(Exception):
     pass
 
+class GameOverError(Exception):
+    pass
+
 class Tile(object):
     # dictionary of tile type and rotations to the direction
     # players can enter/leave the tile
@@ -203,6 +206,8 @@ class Board(object):
             raise BoardCreationError(
                 "Must have 2 or more players to start a game")
 
+        self.gameOver = False
+
         self.rows = rows
         self.columns = columns
         self.board = []
@@ -271,6 +276,9 @@ class Board(object):
     def moveRow(self, player, row, direction):
         '''Shift a row on the board horizontally'''
 
+        if self.gameOver:
+            raise GameOverError("The game is over")
+
         if player != self.playerTurn:
             raise BoardMovementError(
                 "Player tried to move a row out of turn")
@@ -293,15 +301,20 @@ class Board(object):
 
         if direction == WEST:
             self.floatingTile.players = self.board[row][0].players
+            self.floatingTile.boardItem = self.board[row][0].boardItem
             newFloatingTile = self.board[row][0]
             newFloatingTile.players = 0
+            newFloatingTile.boardItem = None
             self.board[row][0:1] = []
             self.board[row].append(self.floatingTile)
 
         elif direction == EAST:
             self.floatingTile.players = self.board[row][self.columns-1].players
+            self.floatingTile.boardItem = \
+                self.board[row][self.columns-1].boardItem
             newFloatingTile = self.board[row][self.columns-1]
             newFloatingTile.players = 0
+            newFloatingTile.boardItem = None
             self.board[row] = self.board[row][:-1]
             self.board[row][0:0] = [self.floatingTile]
 
@@ -311,6 +324,9 @@ class Board(object):
 
     def moveColumn(self, player, column, direction):
         '''Shift a column on the board vertically'''
+
+        if self.gameOver:
+            raise GameOverError("The game is over")
 
         if player != self.playerTurn:
             raise BoardMovementError(
@@ -330,8 +346,10 @@ class Board(object):
 
         if direction == NORTH:
             self.floatingTile.players = self.board[0][column].players
+            self.floatingTile.boardItem = self.board[0][column].boardItem
             newFloatingTile = self.board[0][column]
             newFloatingTile.players = 0
+            newFloatingTile.boardItem = None
 
             for row in range(self.rows-1):
                 self.board[row][column] = self.board[row+1][column]
@@ -340,8 +358,11 @@ class Board(object):
 
         elif direction == SOUTH:
             self.floatingTile.players = self.board[self.rows-1][column].players
+            self.floatingTile.boardItem = \
+                self.board[self.rows-1][column].boardItem
             newFloatingTile = self.board[self.rows-1][column]
             newFloatingTile.players = 0
+            newFloatingTile.boardItem = None
 
             for row in range(self.rows-1, 0, -1):
                 self.board[row][column] = self.board[row-1][column]
@@ -353,12 +374,22 @@ class Board(object):
         self.floatingTilePushed = True
 
     def endTurn(self, player):
+        if self.gameOver:
+            raise GameOverError("The game is over")
+
         if player != self.playerTurn:
             raise PlayerTurnError(
                 "Player tried to end turn out of turn")
 
-        # pick up an item if the player is on top of it
+        # test to see if the player won
         col, row = self.players[player-1].location
+
+        if self.board[row][col].playerHome == player and \
+           self.checkIfPlayerWon(player):
+            self.gameOver = True
+            return
+
+        # pick up an item if the player is on top of it
         boardItem = self.board[row][col].boardItem
 
         if boardItem and boardItem in self.players[player-1].boardItems:
@@ -371,6 +402,16 @@ class Board(object):
             self.playerTurn += 1
 
         self.floatingTilePushed = False
+
+    def checkIfPlayerWon(self, player):
+        playerWon = True
+        for boardItem in self.players[player-1].boardItems:
+            if boardItem.found == False:
+                playerWon = False
+                break
+
+        return playerWon
+
 
     def serialize(self):
         '''encode the board for quick transmission
@@ -452,6 +493,9 @@ class Board(object):
         return buf
 
     def movePlayer(self, player, column, row):
+        if self.gameOver:
+            raise GameOverError("The game is over")
+
         if player != self.playerTurn:
             raise PlayerMovementError(
                 "Player moved out of turn")
