@@ -193,7 +193,7 @@ class Player(object):
 class BoardItem(object):
     def __init__(self, itemNumber=0):
         self.itemNumber = itemNumber
-
+        self.found = False
 
 class Board(object):
 
@@ -236,9 +236,14 @@ class Board(object):
         self.setPlayerHomeTile(columns-1, 0, TILE_L, 1, 3)
         self.setPlayerHomeTile(0, rows-1, TILE_L, 3, 4)
 
+        # XXX - this should be determined by game type
+
         for itemNumber in range(0, itemsPerPlayer*players):
             tile = self._findFreeTileForItem()
             tile.boardItem = BoardItem(itemNumber)
+
+            playerNumber = itemNumber / itemsPerPlayer
+            self.players[playerNumber].boardItems.append(tile.boardItem)
 
         self.floatingTile = Tile(randomTileType(), 0)
 
@@ -287,12 +292,16 @@ class Board(object):
                 "Can't move the corners")
 
         if direction == WEST:
+            self.floatingTile.players = self.board[row][0].players
             newFloatingTile = self.board[row][0]
+            newFloatingTile.players = 0
             self.board[row][0:1] = []
             self.board[row].append(self.floatingTile)
 
         elif direction == EAST:
+            self.floatingTile.players = self.board[row][self.columns-1].players
             newFloatingTile = self.board[row][self.columns-1]
+            newFloatingTile.players = 0
             self.board[row] = self.board[row][:-1]
             self.board[row][0:0] = [self.floatingTile]
 
@@ -320,7 +329,9 @@ class Board(object):
                 "Can't move the corners")
 
         if direction == NORTH:
+            self.floatingTile.players = self.board[0][column].players
             newFloatingTile = self.board[0][column]
+            newFloatingTile.players = 0
 
             for row in range(self.rows-1):
                 self.board[row][column] = self.board[row+1][column]
@@ -328,7 +339,9 @@ class Board(object):
             self.board[self.rows-1][column] = self.floatingTile
 
         elif direction == SOUTH:
+            self.floatingTile.players = self.board[self.rows-1][column].players
             newFloatingTile = self.board[self.rows-1][column]
+            newFloatingTile.players = 0
 
             for row in range(self.rows-1, 0, -1):
                 self.board[row][column] = self.board[row-1][column]
@@ -343,6 +356,14 @@ class Board(object):
         if player != self.playerTurn:
             raise PlayerTurnError(
                 "Player tried to end turn out of turn")
+
+        # pick up an item if the player is on top of it
+        col, row = self.players[player-1].location
+        boardItem = self.board[row][col].boardItem
+
+        if boardItem and boardItem in self.players[player-1].boardItems:
+            boardItem.found = True
+            self.board[row][col].boardItem = None
 
         if player >= len(self.players):
             self.playerTurn = 1
