@@ -234,6 +234,18 @@ def printFloatingTile(client, *args):
                 rows.append(row)
     return '\n'.join(rows) + '\n'
 
+def printItemsRemaining(client, *args):
+    if not client.game:
+        return ERROR_JOIN_GAME
+
+    if not hasattr(client.game.board, 'board'):
+        return ERROR_START_GAME
+
+    # XXX - add a check for the game type here
+
+    player = client.game.board.players[client.getPlayerNumber()-1]
+    return player.getAsciiItemsRemaining() + '\n'
+
 def printHelp(client, *args):
     return 'XXX - Not Implemented\n'
 
@@ -296,7 +308,7 @@ def moveRow(client, *args):
 
     try:
         client.game.board.moveRow(client.getPlayerNumber(), row, dir)
-    except (board.BoardMovementError, board.BoardGameOverError), msg:
+    except (board.BoardMovementError, board.GameOverError), msg:
         return "ERROR: %s\n" % str(msg)
 
     notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
@@ -354,7 +366,7 @@ def movePlayer(client, *args):
 
     try:
         client.game.board.movePlayer(client.getPlayerNumber(), col, row)
-    except board.PlayerMovementError, msg:
+    except (board.PlayerMovementError, board.GameOverError), msg:
         return "ERROR: %s\n" % str(msg)
 
     notifyPlayers(client, TEXT_PLAYER_MOVED % (client.name, col, row))
@@ -459,6 +471,7 @@ commandDict = {
     '/start' : startGame,
     '/leave' : leaveGame,
     '/asciiboard' : printAsciiBoard,
+    '/items' : printItemsRemaining,
     '/board' : printBoard,
     '/pushrow' : moveRow,
     '/pushcolumn' : moveColumn,
@@ -529,7 +542,7 @@ def main():
                         else:
                             buf = ERROR_UNKNOWN_COMMAND % tokens[0]
                             try:
-                                sock.send('%04f' % len(buf) + buf)
+                                sock.send('%04d' % len(buf) + buf)
                             except:
                                 buf = "%s left\n" % clientDict[sock].name
                                 input.remove(sock)

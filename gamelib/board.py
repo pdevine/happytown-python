@@ -156,6 +156,11 @@ class Player(object):
         self.name = "Player %d" % self.playerNumber
         self.boardItems = []
 
+    def getAsciiItemsRemaining(self):
+        return ' '.join([string.ascii_letters[item.itemNumber]
+                            for item in self.boardItems
+                            if not item.found]) 
+
     def getLocation(self):
         location = None
 
