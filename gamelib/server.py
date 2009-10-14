@@ -1,6 +1,6 @@
 #
 # server.py
-# (c) 2009 pdevine@sonic.net
+# (c) 2009, 2010 pdevine@sonic.net
 # Bombitron - www.bombitron.com
 #
 #
@@ -22,8 +22,16 @@ size = 1024
 
 TIMEOUT = 5
 
-VALID_CHARS = string.ascii_letters + string.digits
+VALID_CHARS = string.ascii_letters + string.digits + ' '
 NICK_LENGTH = 10
+
+#
+# Server specific error strings
+#
+# These are errors specific to the server.  Play errors are raised in the
+# board.py module.
+#
+#
 
 ERROR_JOIN_GAME = 'ERROR: need to join a game\n'
 ERROR_START_GAME = 'ERROR: need to start the game\n'
@@ -47,6 +55,13 @@ ERROR_GAME_JOINED = 'ERROR: already joined a game\n'
 ERROR_NEED_PLAYERS = 'ERROR: need more players to start the game\n'
 ERROR_GAME_STARTED = 'ERROR: game already started\n'
 
+#
+# Server event text strings
+#
+# These are text strings which can be returned by the server.  They can
+# be used to trigger AI actions.
+#
+
 TEXT_SET_NICK = "*** You are now known as %s\n"
 TEXT_JOIN_GAME = "*** You have joined game %s\n"
 TEXT_YOUR_TURN = "*** It's your turn\n"
@@ -61,18 +76,30 @@ TEXT_PLAYER_CREATED_GAME = "*** %s has created new game %s\n"
 TEXT_PLAYER_PUSHED_TILE = "*** %s pushed the floating tile\n"
 TEXT_PLAYER_MOVED = "*** %s moved to (%d, %d)\n"
 TEXT_PLAYER_ENDED_TURN = "*** %s ended the turn\n"
+TEXT_PLAYER_ROTATED_TILE = "*** You rotated the tile\n"
 
 gameBoards = {}
 clientDict = {}
 
 def listGames(client, *args):
+    '''List current games which are being played on the server'''
+
+    # XXX - Currently this displays the board UUID key and the number
+    #       of players currently in the game
+    #
+    #       This needs to display:
+    #          - players in the game
+    #          - game started
+    #          - last move time (?)
+    #          - game duration
+
     buf = []
     for game in gameBoards.keys():
         buf.append('%s %d' % (game, gameBoards[game].playerCount))
     return '\n'.join(buf) + '\n'
 
 def joinGame(client, *args):
-    #assert args[0] in gameBoards.keys()
+    '''Join a game which has been created but not started'''
 
     if client.name == 'Unknown':
         return ERROR_UNKNOWN_NICK_START
@@ -101,6 +128,8 @@ def joinGame(client, *args):
     return TEXT_JOIN_GAME % gameKey
 
 def leaveGame(client, *args):
+    '''Leave a game which has been joined'''
+
     if not client.game:
         return ERROR_JOIN_GAME
 
@@ -114,6 +143,7 @@ def leaveGame(client, *args):
     client.game = None
 
 def cleanupGame(gameKey):
+    '''Destroy a game board which has no more players left'''
     game = clientDict.get(gameKey)
 
     if game:
@@ -124,13 +154,16 @@ def cleanupGame(gameKey):
     del gameBoards[gameKey]
 
 def setNick(client, *args):
+    '''Set the nick name of player'''
+
     if not args:
         return ERROR_SPECIFY_NICK
-    elif len(args[0]) > NICK_LENGTH:
-        return ERROR_NICK_MAX_CHARS % NICK_LENGTH
 
     oldName = client.name
-    newName = args[0]
+    newName = ' '.join(args)
+
+    if len(newName) > NICK_LENGTH:
+        return ERROR_NICK_MAX_CHARS % NICK_LENGTH
 
     for c in newName:
         if c not in VALID_CHARS:
@@ -145,12 +178,14 @@ def setNick(client, *args):
     return TEXT_SET_NICK % client.name
     
 def lookupNick(nick):
+    '''Find the client object associated with a particular nick'''
     for client in clientDict.keys():
         if clientDict[client].name == nick:
             return clientDict[client]
     return None
 
 def startGame(client, *args):
+    '''Start a game that has been joined'''
     # XXX - only allow starting by the person who created the game?
 
     if not client.game:
@@ -174,9 +209,9 @@ def startGame(client, *args):
     # it is first
     notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
 
-    return ''
 
 def newGame(client, *args):
+    '''Create a new game'''
     global gameBoards
 
     if client.name == 'Unknown':
@@ -197,9 +232,9 @@ def newGame(client, *args):
 
     joinGame(client, gameKey)
 
-    return ''
+def printBoard(client, *args):
+    '''Print an ascii representation of the game board'''
 
-def printAsciiBoard(client, *args):
     if not client.game:
         return ERROR_JOIN_GAME
 
@@ -218,6 +253,7 @@ def printAsciiBoard(client, *args):
     return '\n'.join(rows) + '\n'
 
 def printFloatingTile(client, *args):
+    '''Print an ascii representation of the floating tile'''
     if not client.game:
         return ERROR_JOIN_GAME
 
@@ -235,13 +271,14 @@ def printFloatingTile(client, *args):
     return '\n'.join(rows) + '\n'
 
 def printItemsRemaining(client, *args):
+    '''Print remaining items for the player'''
     if not client.game:
         return ERROR_JOIN_GAME
 
     if not hasattr(client.game.board, 'board'):
         return ERROR_START_GAME
 
-    # XXX - add a check for the game type here
+    # XXX - add a check for the game type here?
 
     player = client.game.board.players[client.getPlayerNumber()-1]
     return player.getAsciiItemsRemaining() + '\n'
@@ -250,6 +287,8 @@ def printHelp(client, *args):
     return 'XXX - Not Implemented\n'
 
 def listUsers(client, *args):
+    '''Print a list of all users on the server'''
+
     buf = []
     for userKey in clientDict.keys():
         user = clientDict[userKey]
@@ -261,6 +300,8 @@ def listUsers(client, *args):
     return '\n'.join(buf) + '\n'
 
 def rotateFloatingTile(client, *args):
+    '''Rotate the floating tile clockwise or anti-clockwise'''
+
     if not client.game:
         return ERROR_JOIN_GAME
 
@@ -272,16 +313,18 @@ def rotateFloatingTile(client, *args):
 
     try:
         if args[0].lower() in ['1', 'clockwise', 'clock']:
-            client.game.board.floatingTile.rotateClockwise()
-        elif args[0].lower in ['2', 'counterclockwise', 'counter']:
-            client.game.board.floatingTile.rotateCounterClockwise()
-    except:
-        # XXX - shouldn't be able to rotate out of turn
-        pass
+            client.game.board.rotateClockwise(client.getPlayerNumber())
+        elif args[0].lower() in ['2', 'counterclockwise', 'counter']:
+            client.game.board.rotateCounterClockwise(client.getPlayerNumber())
+    except (board.BoardMovementError, board.GameOverError), msg:
+        return "ERROR: %s\n" % str(msg)
 
-    return ''
+    return TEXT_PLAYER_ROTATED_TILE
 
-def printBoard(client, *args):
+
+def printSerializedBoard(client, *args):
+    '''Dump the current game state in a machine parseable way'''
+
     if not client.game:
         return ERROR_JOIN_GAME
 
@@ -291,6 +334,8 @@ def printBoard(client, *args):
     return client.game.board.serialize()
 
 def moveRow(client, *args):
+    '''Push the floating tile onto a row on the board'''
+
     if not client.game:
         return ERROR_JOIN_GAME
 
@@ -313,9 +358,10 @@ def moveRow(client, *args):
 
     notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
 
-    return ''
 
 def moveColumn(client, *args):
+    '''Push the floating tile onto a column on the board'''
+
     if not client.game:
         return ERROR_JOIN_GAME
 
@@ -338,22 +384,9 @@ def moveColumn(client, *args):
 
     notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
 
-    return ''
-
-def notifyPlayers(client, msg):
-    for player in client.game.players:
-        if player:
-            player.send(msg)
-
-def notifyPlayer(client, player, msg):
-    client.game.players[player-1].send(msg)
-
-def notifyAllPlayers(msg):
-    for client in clientDict.keys():
-        clientDict[client].send(msg)
-
 
 def movePlayer(client, *args):
+    '''Move a player to a location on the board'''
 
     if len(args) != 2:
         return ERROR_COLUMN_ROW
@@ -371,9 +404,10 @@ def movePlayer(client, *args):
 
     notifyPlayers(client, TEXT_PLAYER_MOVED % (client.name, col, row))
 
-    return ''
 
 def endTurn(client, *args):
+    '''End the turn'''
+
     # XXX - notify if a board item was picked up
 
     try:
@@ -389,6 +423,23 @@ def endTurn(client, *args):
         notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
 
     return ''
+
+def notifyPlayers(client, msg):
+    '''Send a message to all players in the game'''
+
+    for player in client.game.players:
+        if player:
+            player.send(msg)
+
+def notifyPlayer(client, player, msg):
+    '''Send a message to an individual player'''
+    client.game.players[player-1].send(msg)
+
+def notifyAllPlayers(msg):
+    '''Send a message to all players on the server'''
+
+    for client in clientDict.keys():
+        clientDict[client].send(msg)
 
 class NetworkGame(object):
     def __init__(self, gameKey):
@@ -455,6 +506,11 @@ class NetworkPlayer(object):
         self.client.send('%04d' % len(msg) + msg)
 
 
+#
+# Handy debug method for trouble shooting any errors.  This dumps the
+# server into the python debugger and prints the stack traceback
+#
+
 def debug(exceptType, value, tb):
     import traceback, pdb
     traceback.print_exception(exceptType, value, tb)
@@ -470,14 +526,14 @@ commandDict = {
     '/new' : newGame,
     '/start' : startGame,
     '/leave' : leaveGame,
-    '/asciiboard' : printAsciiBoard,
-    '/items' : printItemsRemaining,
     '/board' : printBoard,
+    '/ft' : printFloatingTile,
+    '/items' : printItemsRemaining,
+    '/data' : printSerializedBoard,
     '/pushrow' : moveRow,
     '/pushcolumn' : moveColumn,
     '/move' : movePlayer,
     '/end' : endTurn,
-    '/ft' : printFloatingTile,
     '/rotate' : rotateFloatingTile,
     '/help' : printHelp,
 }

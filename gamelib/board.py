@@ -182,7 +182,6 @@ class Player(object):
         tile = self.board.board[row][column]
         tile.removePlayer(self.playerNumber)
 
-        print "col=%d row=%d" % (location[COLUMN], location[ROW])
         tile = self.board.board[location[ROW]][location[COLUMN]]
         tile.addPlayer(self.playerNumber)
 
@@ -273,10 +272,39 @@ class Board(object):
         # set the start location for each player
         if player <= len(self.players):
             self.board[row][column].addPlayer(player)
-            print "added player"
 
     def getFloatingTile(self):
         return self.floatingTile
+
+    def rotateClockwise(self, player):
+        if self.gameOver:
+            raise GameOverError("The game is over")
+
+        if player != self.playerTurn:
+            raise BoardMovementError(
+                "Player tried to rotate tile out of turn")
+
+        if self.floatingTilePushed:
+            raise BoardMovementError(
+                "Floating tile already pushed")
+
+        self.floatingTile.rotateClockwise()
+
+
+    def rotateCounterClockwise(self, player):
+        if self.gameOver:
+            raise GameOverError("The game is over")
+
+        if player != self.playerTurn:
+            raise BoardMovementError(
+                "Player tried to rotate tile out of turn")
+
+        if self.floatingTilePushed:
+            raise BoardMovementError(
+                "Floating tile already pushed")
+
+        self.floatingTile.rotateCounterClockwise()
+
 
     def moveRow(self, player, row, direction):
         '''Shift a row on the board horizontally'''
@@ -509,15 +537,12 @@ class Board(object):
             raise PlayerMovementError(
                 "Player tried moving before pushing the floating tile")
 
-        print "col=%d row=%d" % (column, row)
-
         traverseGraph = traverse.TraversalGraph(self)
 
         startLocation = self.players[player-1].location
 
         if traverseGraph.findPath(startLocation, (column, row)):
             self.players[player-1].location = (column, row)
-            print "loc: col: %d row: %d" % (column, row)
         else:
             raise PlayerMovementError(
                 "Can't move player from %s to (%d, %d)" % \
