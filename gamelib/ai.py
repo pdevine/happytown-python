@@ -114,13 +114,33 @@ class AIBaseClass(AISocketHandler):
 
     def waitForTurn(self):
         self.waitForMessage(server.TEXT_YOUR_TURN)
+        print "Our turn"
+
+    def pushColumn(self):
+        self.send('/pushcolumn 1 4')
+
+        pushedText = re.sub('%s', '(\w+)', server.TEXT_PLAYER_PUSHED_TILE)
+        pushedText = re.sub('\*', '\*', pushedText)
+
+        msg = self.receive()
+        mObj = re.match(pushedText, msg)
+        if mObj:
+            print "Pushed tile"
+        else:
+            print "Uh-oh.  Tile not pushed"
+
+    def endTurn(self):
+        print "End the turn"
+        self.send('/end')
 
 sys.excepthook = debug
 
 ai = AIBaseClass()
-#ai.joinGame('a707882654e2505250d58ae7630469ae')
 ai.joinFirstGame()
 ai.getPlayerNumber()
-ai.waitForTurn()
+while True:
+    ai.waitForTurn()
+    ai.pushColumn()
+    ai.endTurn()
 ai.sock.close()
 
