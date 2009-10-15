@@ -450,23 +450,63 @@ class Board(object):
         '''encode the board for quick transmission
         '''
 
-        # TODO:  Things to serialize:
-        #           - board size (row and columns)
-        #           - items remaining to pick up per player
-        #           - player turn
-        #           - floating tile pushed
-        #           - the floating tile
+        # Format is:
+        #    size (chars)       description
+        #    -------------------------------------------------
+        #    1                  columns
+        #    1                  rows    
+        #    columns * rows     tile directions
+        #                       1 = north
+        #                       2 = east
+        #                       4 = south
+        #                       8 = west
+        #    1                  # of players
+        #    # of players * 2   player positions
+        #                       column / row for each player
+        #    2                  # of items
+        #    # of items * 3     item positions
+        #                       columns / row / player owner
+        #                       for each item
+        #    1                  player turn
+        #    1                  floating tile pushed 0 / 1
+        #    1                  floating tile directions
 
-        buf = ''
+
+        buf = [str(self.columns), str(self.rows)]
+        tiles = []
+
         for row in self.board:
             for tile in row:
                 buf += hex(tile.getDirs())[-1]
-                buf += hex(tile.players)[-1]
-                if tile.boardItem:
-                    buf += string.ascii_letters[tile.boardItem.itemNumber]
-                else:
-                    buf += '0'
-        return buf
+                tiles.append(tile)
+
+        buf.append(str(len(self.players)))
+
+        for player in self.players:
+            buf.append('%d%d' % player.location)
+
+        items = []
+        itemCount = 0
+        for count, tile in enumerate(tiles):
+            if tile.boardItem:
+                itemCount += 1
+                col = count % self.columns
+                row = count / self.rows
+                for playerCount, player in enumerate(self.players):
+                    if tile.boardItem in player.boardItems:
+                        break
+                items.append('%d%d%d' % (col, row, playerCount))
+
+        buf.append(str(itemCount))
+        buf += items
+
+        buf.append(str(self.playerTurn))
+        buf.append(str(int(self.floatingTilePushed)))
+        buf.append(hex(self.floatingTile.getDirs())[-1])
+
+        print buf
+
+        return ''.join(buf) + '\n'
 
     def deserialize(self, boardBuffer):
         count = 0
