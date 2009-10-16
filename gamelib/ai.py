@@ -65,6 +65,8 @@ class AIBaseClass(AISocketHandler):
         self.connect(host, port)
         self.setNick(nick)
 
+        self.board = board.Board()
+
     def waitForMessage(self, waitMsg):
         while True:
             msg = self.receive()
@@ -133,12 +135,12 @@ class AIBaseClass(AISocketHandler):
     def getData(self):
         self.send('/data')
         boardData = self.receive()
-
         print boardData
-        gameBoard = board.Board()
-        gameBoard.deserialize(boardData)
 
-        print gameBoard.asciiBoard()
+        self.board.deserialize(boardData)
+
+        print self.board.asciiBoard()
+        print self.board.players[self.playerNumber-1].getAsciiItemsRemaining()
 
     def endTurn(self):
         print "End the turn"

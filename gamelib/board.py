@@ -178,9 +178,13 @@ class Player(object):
     def setLocation(self, location):
         assert len(location) == 2
 
-        column, row = self.getLocation()
-        tile = self.board.board[row][column]
-        tile.removePlayer(self.playerNumber)
+
+        try:
+            column, row = self.getLocation()
+            tile = self.board.board[row][column]
+            tile.removePlayer(self.playerNumber)
+        except PlayerLocationError:
+            pass
 
         tile = self.board.board[location[ROW]][location[COLUMN]]
         tile.addPlayer(self.playerNumber)
@@ -486,17 +490,16 @@ class Board(object):
             buf.append('%d%d' % player.location)
 
         items = []
-        itemCount = 0
         for count, tile in enumerate(tiles):
             if tile.boardItem:
-                itemCount += 1
-                col = count % self.columns
+                column = count % self.columns
                 row = count / self.rows
                 for playerCount, player in enumerate(self.players):
                     if tile.boardItem in player.boardItems:
                         break
-                items.append('%d%d%d' % (col, row, playerCount))
+                items.append('%d%d%d' % (column, row, playerCount))
 
+        itemCount = len(items)
         buf.append(str(itemCount))
         buf += items
 
@@ -541,6 +544,32 @@ class Board(object):
                 tempRow.append(Tile(*Tile.directionsToTile[tileDirs]))
                 count += 1
             self.board.append(tempRow)
+
+        numPlayers = int(boardBuffer[count])
+        self.players = []
+
+        count += 1
+
+        # players are enumerated from 1
+        for player in range(1, numPlayers+1):
+            column = int(boardBuffer[count])
+            row = int(boardBuffer[count+1])
+            playerObj = Player(self, player)
+            playerObj.createPlayer()
+            playerObj.location = (column, row)
+            self.players.append(playerObj)
+            count += 2
+
+        numItems = int(boardBuffer[count])
+        count += 1
+        for itemNumber in range(numItems):
+            column = int(boardBuffer[count])
+            row = int(boardBuffer[count+1])
+            tile = self.board[row][column]
+            tile.boardItem = BoardItem(itemNumber)
+            player = self.players[int(boardBuffer[count+2])]
+            player.boardItems.append(tile.boardItem)
+            count += 3
 
 
     def asciiBoard(self):
