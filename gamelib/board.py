@@ -240,10 +240,10 @@ class Board(object):
             self.board.append(tempRow)
 
         # set up the 4 corners of the board
-        self.setPlayerHomeTile(0, 0, TILE_L, 0, 1)
-        self.setPlayerHomeTile(columns-1, rows-1, TILE_L, 2, 2)
-        self.setPlayerHomeTile(columns-1, 0, TILE_L, 1, 3)
-        self.setPlayerHomeTile(0, rows-1, TILE_L, 3, 4)
+        self._setPlayerHomeTile(0, 0, TILE_L, 0, 1)
+        self._setPlayerHomeTile(columns-1, rows-1, TILE_L, 2, 2)
+        self._setPlayerHomeTile(columns-1, 0, TILE_L, 1, 3)
+        self._setPlayerHomeTile(0, rows-1, TILE_L, 3, 4)
 
         # XXX - this should be determined by game type
 
@@ -265,7 +265,7 @@ class Board(object):
             if not self.board[row][column].boardItem:
                 return self.board[row][column]
 
-    def setPlayerHomeTile(self, column, row, tile, rotation, player):
+    def _setPlayerHomeTile(self, column, row, tile, rotation, player):
         self.board[row][column].setTypeAndRotation(tile, rotation)
         self.board[row][column].playerHome = player
 
@@ -509,18 +509,39 @@ class Board(object):
         return ''.join(buf) + '\n'
 
     def deserialize(self, boardBuffer):
-        count = 0
+        #    1                  columns
+        #    1                  rows    
+        #    columns * rows     tile directions
+        #                       1 = north
+        #                       2 = east
+        #                       4 = south
+        #                       8 = west
+        #    1                  # of players
+        #    # of players * 2   player positions
+        #                       column / row for each player
+        #    2                  # of items
+        #    # of items * 3     item positions
+        #                       columns / row / player owner
+        #                       for each item
+        #    1                  player turn
+        #    1                  floating tile pushed 0 / 1
+        #    1                  floating tile directions
 
-        # XXX - this should probably instantiate a new board object
-        #       and pick up the board size from the serialized string
 
-        for row in self.board:
-            for tile in row:
-                #assert self.board[row][tile]
+        self.columns = int(boardBuffer[0])
+        self.rows = int(boardBuffer[1])
+
+        count = 2
+        self.board = []
+
+        for row in range(self.rows):
+            tempRow = []
+            for column in range(self.columns):
                 tileDirs = int(boardBuffer[count], 16)
-                tile.setTypeAndRotation(*Tile.directionsToTile[tileDirs])
-                tile.players = int(boardBuffer[count+1], 16)
-                count += 3
+                tempRow.append(Tile(*Tile.directionsToTile[tileDirs]))
+                count += 1
+            self.board.append(tempRow)
+
 
     def asciiBoard(self):
         buf = ''

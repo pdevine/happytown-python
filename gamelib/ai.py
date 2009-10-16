@@ -10,6 +10,7 @@ import re
 
 import socket
 import server
+import board
 
 MSGLEN = 4096
 
@@ -129,9 +130,20 @@ class AIBaseClass(AISocketHandler):
         else:
             print "Uh-oh.  Tile not pushed"
 
+    def getData(self):
+        self.send('/data')
+        boardData = self.receive()
+
+        print boardData
+        gameBoard = board.Board()
+        gameBoard.deserialize(boardData)
+
+        print gameBoard.asciiBoard()
+
     def endTurn(self):
         print "End the turn"
         self.send('/end')
+
 
 sys.excepthook = debug
 
@@ -140,6 +152,7 @@ ai.joinFirstGame()
 ai.getPlayerNumber()
 while True:
     ai.waitForTurn()
+    ai.getData()
     ai.pushColumn()
     ai.endTurn()
 ai.sock.close()
