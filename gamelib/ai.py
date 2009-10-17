@@ -11,6 +11,7 @@ import re
 import socket
 import server
 import board
+import traverse
 
 MSGLEN = 4096
 
@@ -79,6 +80,8 @@ class AIBaseClass(AISocketHandler):
         self.waitForMessage(server.TEXT_SET_NICK % nick)
         print "Nick set to %s" % nick
 
+        self.nick = nick
+
     def joinFirstGame(self):
         self.send('/list')
 
@@ -119,8 +122,13 @@ class AIBaseClass(AISocketHandler):
         self.waitForMessage(server.TEXT_YOUR_TURN)
         print "Our turn"
 
-    def pushColumn(self):
-        self.send('/pushcolumn 1 4')
+    def pushTile(self, direction, num):
+        if direction in [board.NORTH, board.SOUTH]:
+            self.send('/pushcolumn %d %d' % (direction, num))
+        elif direction in [board.EAST, board.WEST]:
+            self.send('/pushrow %d %d' % (direction, num))
+        else:
+            print "Couldn't push tile"
 
         pushedText = re.sub('%s', '(\w+)', server.TEXT_PLAYER_PUSHED_TILE)
         pushedText = re.sub('\*', '\*', pushedText)
@@ -142,6 +150,28 @@ class AIBaseClass(AISocketHandler):
         print self.board.asciiBoard()
         print self.board.players[self.playerNumber-1].getAsciiItemsRemaining()
 
+    def moveToAnyItem(self):
+        aiPlayer = self.board.players[self.playerNumber-1]
+
+        traverseGraph = traverse.TraversalGraph(self.board)
+
+        for rowCount, row in enumerate(self.board.board):
+            for columnCount, tile in enumerate(row):
+                tileLocation = (columnCount, rowCount)
+                if tile.boardItem in aiPlayer.boardItems and \
+                   not tile.boardItem.found:
+                    if traverseGraph.findPath(aiPlayer.location, tileLocation):
+                        self.moveToTile(*tileLocation)
+                        return
+
+        print "Couldn't find item"
+
+    def moveToTile(self, column, row):
+        self.send('/move %d %d' % (column, row))
+
+        self.waitForMessage(server.TEXT_PLAYER_MOVED % (self.nick, column, row))
+        print "Moved to (%d, %d)" % (column, row)
+        
     def endTurn(self):
         print "End the turn"
         self.send('/end')
@@ -155,7 +185,8 @@ ai.getPlayerNumber()
 while True:
     ai.waitForTurn()
     ai.getData()
-    ai.pushColumn()
+    ai.pushTile(1, 4)
+    ai.moveToAnyItem()
     ai.endTurn()
 ai.sock.close()
 
