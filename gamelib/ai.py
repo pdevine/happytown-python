@@ -12,6 +12,7 @@ import socket
 import server
 import board
 import traverse
+import random
 
 MSGLEN = 4096
 
@@ -67,6 +68,7 @@ class AIBaseClass(AISocketHandler):
         self.setNick(nick)
 
         self.board = board.Board()
+        self.startLocations = []
 
     def waitForMessage(self, waitMsg):
         while True:
@@ -118,15 +120,26 @@ class AIBaseClass(AISocketHandler):
         print "Player number = %d" % playerNumber
         self.playerNumber = playerNumber
 
+        if playerNumber == 1:
+            self.waitForTurn()
+
+#        self.getData()
+#
+#        for player in self.board.players:
+#            self.startLocations.append(player.location)
+#
+#        print self.startLocations
+
     def waitForTurn(self):
         self.waitForMessage(server.TEXT_YOUR_TURN)
         print "Our turn"
 
     def pushTile(self, direction, num):
+        print "pushing %d %d" % (direction, num)
         if direction in [board.NORTH, board.SOUTH]:
-            self.send('/pushcolumn %d %d' % (direction, num))
+            self.send('/pushcolumn %d %d' % (num, direction))
         elif direction in [board.EAST, board.WEST]:
-            self.send('/pushrow %d %d' % (direction, num))
+            self.send('/pushrow %d %d' % (num, direction))
         else:
             print "Couldn't push tile"
 
@@ -139,6 +152,7 @@ class AIBaseClass(AISocketHandler):
             print "Pushed tile"
         else:
             print "Uh-oh.  Tile not pushed"
+            print msg
 
     def getData(self):
         self.send('/data')
@@ -150,21 +164,78 @@ class AIBaseClass(AISocketHandler):
         print self.board.asciiBoard()
         print self.board.players[self.playerNumber-1].getAsciiItemsRemaining()
 
-    def moveToAnyItem(self):
-        aiPlayer = self.board.players[self.playerNumber-1]
+    def searchForAnyItem(self):
+        location = self.board.players[self.playerNumber-1].location
 
-        traverseGraph = traverse.TraversalGraph(self.board)
+        items = []
+
+        for direction in [board.WEST, board.EAST]:
+            for row in range(1, self.board.rows-1):
+                self.board.floatingTilePushed = False
+                self.board.moveRow(self.playerNumber, row, direction)
+                print "push row %d %d" % (row, direction)
+
+                items = self.buildItemList(self.playerNumber)
+
+                traverseGraph = traverse.TraversalGraph(self.board)
+
+                for item in items:
+                    print item
+                    if traverseGraph.findPath(location, item):
+                        print "found item"
+                        self.pushTile(direction, row)
+                        self.moveToTile(*item)
+                        return
+
+                # push the row back where it was -- this is faster than
+                # making a new copy of the board
+                self.board.floatingTilePushed = False
+
+                oppDirection = board.WEST
+                if direction == board.WEST:
+                    oppDirection = board.EAST
+
+                print "push row %d %d" % (row, oppDirection)
+                self.board.moveRow(self.playerNumber, row, oppDirection)
+
+        # give up and just push any tile
+        print "Couldn't find an item"
+        self.pushTile(random.choice([board.EAST, board.WEST]),
+                      random.randint(1, self.board.rows-2))
+
+
+    def moveToAnyItem(self):
+        items = self.buildItemList(self.playerNumber-1)
+        location = self.board.players[self.playerNumber-1].location
+
+        if not items:
+            # XXX - move home?
+            print "No items found"
+            pass
+
+        else:
+            
+            traverseGraph = traverse.TraversalGraph(self.board)
+
+            for item in items:
+                if traverseGraph.findPath(location, item):
+                    self.moveToTile(*item)
+                    return
+            print "Couldn't move to an item"
+
+    def buildItemList(self, playerNumber):
+        items = []
+
+        player = self.board.players[playerNumber-1]
 
         for rowCount, row in enumerate(self.board.board):
             for columnCount, tile in enumerate(row):
                 tileLocation = (columnCount, rowCount)
-                if tile.boardItem in aiPlayer.boardItems and \
+                if tile.boardItem in player.boardItems and \
                    not tile.boardItem.found:
-                    if traverseGraph.findPath(aiPlayer.location, tileLocation):
-                        self.moveToTile(*tileLocation)
-                        return
+                    items.append(tileLocation)
 
-        print "Couldn't find item"
+        return items
 
     def moveToTile(self, column, row):
         self.send('/move %d %d' % (column, row))
@@ -185,8 +256,7 @@ ai.getPlayerNumber()
 while True:
     ai.waitForTurn()
     ai.getData()
-    ai.pushTile(1, 4)
-    ai.moveToAnyItem()
+    ai.searchForAnyItem()
     ai.endTurn()
 ai.sock.close()
 

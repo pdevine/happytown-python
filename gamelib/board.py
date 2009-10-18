@@ -474,6 +474,7 @@ class Board(object):
         #    1                  player turn
         #    1                  floating tile pushed 0 / 1
         #    1                  floating tile directions
+        #    1                  game over 0 / 1
 
 
         buf = [str(self.columns), str(self.rows)]
@@ -506,6 +507,7 @@ class Board(object):
         buf.append(str(self.playerTurn))
         buf.append(str(int(self.floatingTilePushed)))
         buf.append(hex(self.floatingTile.getDirs())[-1])
+        buf.append(str(int(self.gameOver)))
 
         print buf
 
@@ -570,6 +572,15 @@ class Board(object):
             player = self.players[int(boardBuffer[count+2])]
             player.boardItems.append(tile.boardItem)
             count += 3
+
+        self.playerTurn = int(boardBuffer[count])
+        self.floatingTilePushed = bool(int(boardBuffer[count+1]))
+
+        # set up the floating tile
+        tileDirs = int(boardBuffer[count+2], 16)
+        self.floatingTile = Tile(*Tile.directionsToTile[tileDirs])
+
+        self.gameOver = bool(int(boardBuffer[count+3]))
 
 
     def asciiBoard(self):
