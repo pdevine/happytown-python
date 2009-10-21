@@ -135,7 +135,7 @@ class AIBaseClass(AISocketHandler):
         print "Our turn"
 
     def pushTile(self, direction, num):
-        print "pushing %d %d" % (direction, num)
+        print "pushing %d %d" % (num, direction)
         if direction in [board.NORTH, board.SOUTH]:
             self.send('/pushcolumn %d %d' % (num, direction))
         elif direction in [board.EAST, board.WEST]:
@@ -176,11 +176,11 @@ class AIBaseClass(AISocketHandler):
                 print "push row %d %d" % (row, direction)
 
                 items = self.buildItemList(self.playerNumber)
+                print items
 
                 traverseGraph = traverse.TraversalGraph(self.board)
 
                 for item in items:
-                    print item
                     if traverseGraph.findPath(location, item):
                         print "found item"
                         self.pushTile(direction, row)
@@ -198,10 +198,48 @@ class AIBaseClass(AISocketHandler):
                 print "push row %d %d" % (row, oppDirection)
                 self.board.moveRow(self.playerNumber, row, oppDirection)
 
+        items = self.buildItemList(self.playerNumber)
+        print "items"
+        print items
+
+        for direction in [board.NORTH, board.SOUTH]:
+            for column in range(1, self.board.columns-1):
+                self.board.floatingTilePushed = False
+                self.board.moveColumn(self.playerNumber, column, direction)
+                print "push col %d %d" % (column, direction)
+
+                items = self.buildItemList(self.playerNumber)
+                print items
+
+                traverseGraph = traverse.TraversalGraph(self.board)
+
+                for item in items:
+                    print item
+                    if traverseGraph.findPath(location, item):
+                        print "found item"
+                        self.pushTile(direction, column)
+                        self.moveToTile(*item)
+                        return
+
+                # push the row back where it was -- this is faster than
+                # making a new copy of the board
+                self.board.floatingTilePushed = False
+
+                oppDirection = board.NORTH
+                if direction == board.NORTH:
+                    oppDirection = board.SOUTH
+
+                print "push col %d %d" % (column, oppDirection)
+                self.board.moveColumn(self.playerNumber, column, oppDirection)
+
         # give up and just push any tile
         print "Couldn't find an item"
-        self.pushTile(random.choice([board.EAST, board.WEST]),
-                      random.randint(1, self.board.rows-2))
+        if random.randint(0, 1):
+            self.pushTile(random.choice([board.EAST, board.WEST]),
+                          random.randint(1, self.board.rows-2))
+        else:
+            self.pushTile(random.choice([board.NORTH, board.SOUTH]),
+                          random.randint(1, self.board.columns-2))
 
 
     def moveToAnyItem(self):
@@ -238,6 +276,7 @@ class AIBaseClass(AISocketHandler):
         return items
 
     def moveToTile(self, column, row):
+        print "moving to %d %d" % (column, row)
         self.send('/move %d %d' % (column, row))
 
         self.waitForMessage(server.TEXT_PLAYER_MOVED % (self.nick, column, row))
