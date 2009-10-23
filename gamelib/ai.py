@@ -68,7 +68,7 @@ class AIBaseClass(AISocketHandler):
         self.setNick(nick)
 
         self.board = board.Board()
-        self.startLocations = []
+        self.startLocation = (-1, -1)
 
     def waitForMessage(self, waitMsg):
         while True:
@@ -77,12 +77,21 @@ class AIBaseClass(AISocketHandler):
                 return
 
     def setNick(self, nick):
-        self.send('/nick %s' % nick)
 
-        self.waitForMessage(server.TEXT_SET_NICK % nick)
-        print "Nick set to %s" % nick
+        for count in range(1, 5):
+            self.send('/nick %s' % nick)
+            while True:
+                msg = self.receive()
 
-        self.nick = nick
+                if msg == server.TEXT_SET_NICK % nick:
+                    print "Nick set to %s" % nick
+                    self.nick = nick
+                    return
+                elif msg == server.ERROR_EXISTING_NICK:
+                    break
+            nick += str(count)
+
+        print "Couldn't set nick!"
 
     def joinFirstGame(self):
         self.send('/list')
@@ -107,7 +116,9 @@ class AIBaseClass(AISocketHandler):
         print "Joined game %s" % gameKey
 
     def getPlayerNumber(self):
-        playerText = re.sub('%d', '(\d)', server.TEXT_PLAYER_NUMBER)
+        playerText = re.sub(r'\(', '\(', server.TEXT_PLAYER_NUMBER)
+        playerText = re.sub(r'\)', '\)', playerText)
+        playerText = re.sub(r'%d', '(\d)', playerText)
         playerText = re.sub('\*', '\*', playerText)
 
         while True:
@@ -115,20 +126,17 @@ class AIBaseClass(AISocketHandler):
             mObj = re.match(playerText, msg)
             if mObj:
                 playerNumber = int(mObj.groups()[0])
+                location = \
+                    (int(mObj.groups()[1]), int(mObj.groups()[2]))
                 break
 
         print "Player number = %d" % playerNumber
+        print "Starting Location = " + str(location)
         self.playerNumber = playerNumber
+        self.startLocation = location
 
         if playerNumber == 1:
             self.waitForTurn()
-
-#        self.getData()
-#
-#        for player in self.board.players:
-#            self.startLocations.append(player.location)
-#
-#        print self.startLocations
 
     def waitForTurn(self):
         self.waitForMessage(server.TEXT_YOUR_TURN)
@@ -165,72 +173,70 @@ class AIBaseClass(AISocketHandler):
         print self.board.players[self.playerNumber-1].getAsciiItemsRemaining()
 
     def searchForAnyItem(self):
-        location = self.board.players[self.playerNumber-1].location
 
-        items = []
+        for direction in [board.WEST, board.EAST, board.NORTH, board.SOUTH]:
+            for num in range(1,
+               max(self.board.rows-1, self.board.columns-1)):
 
-        for direction in [board.WEST, board.EAST]:
-            for row in range(1, self.board.rows-1):
-                self.board.floatingTilePushed = False
-                self.board.moveRow(self.playerNumber, row, direction)
-                print "push row %d %d" % (row, direction)
+                if direction in [board.WEST, board.EAST] and \
+                   num > self.board.rows-1:
+                    continue
+                elif direction in [board.NORTH, board.SOUTH] and \
+                   num > self.board.columns-1:
+                    continue
+                else:
+                    # wtf?
+                    pass
 
-                items = self.buildItemList(self.playerNumber)
-                print items
+                # we could be more crafty about not sliding tiles in
+                # here which aren't going to connect to anything but
+                # that might be inefficient as well
 
-                traverseGraph = traverse.TraversalGraph(self.board)
+                for rotation in range(4):
+                    self.board.floatingTilePushed = False
 
-                for item in items:
-                    if traverseGraph.findPath(location, item):
-                        print "found item"
-                        self.pushTile(direction, row)
-                        self.moveToTile(*item)
-                        return
+                    for rotateCount in range(rotation):
+                        self.board.floatingTile.rotateClockwise()
 
-                # push the row back where it was -- this is faster than
-                # making a new copy of the board
-                self.board.floatingTilePushed = False
+                    if direction in [board.WEST, board.EAST]:
+                        self.board.moveRow(self.playerNumber, num, direction)
+                    elif direction in [board.NORTH, board.SOUTH]:
+                        self.board.moveColumn(self.playerNumber, num, direction)
 
-                oppDirection = board.WEST
-                if direction == board.WEST:
-                    oppDirection = board.EAST
+                    items = self.buildItemList(self.playerNumber)
 
-                print "push row %d %d" % (row, oppDirection)
-                self.board.moveRow(self.playerNumber, row, oppDirection)
+                    traverseGraph = traverse.TraversalGraph(self.board)
+                    location = self.board.players[self.playerNumber-1].location
 
-        items = self.buildItemList(self.playerNumber)
-        print "items"
-        print items
+                    for item in items:
+                        if traverseGraph.findPath(location, item):
+                            print "found item"
+                            for rotateCount in range(rotation):
+                                self.rotateTile()
+                            self.pushTile(direction, num)
+                            self.moveToTile(*item)
+                            return
 
-        for direction in [board.NORTH, board.SOUTH]:
-            for column in range(1, self.board.columns-1):
-                self.board.floatingTilePushed = False
-                self.board.moveColumn(self.playerNumber, column, direction)
-                print "push col %d %d" % (column, direction)
+                    # push the row/col back where it was --
+                    # this is faster than making a new copy of the board
+                    self.board.floatingTilePushed = False
 
-                items = self.buildItemList(self.playerNumber)
-                print items
+                    if direction in [board.WEST, board.EAST]:
+                        print "push row %d %d" % \
+                            (num, board.OPP_DICT[direction])
+                        self.board.moveRow(self.playerNumber,
+                                           num,
+                                           board.OPP_DICT[direction])
+                    elif direction in [board.NORTH, board.SOUTH]:
+                        print "push column %d %d" % \
+                            (num, board.OPP_DICT[direction])
+                        self.board.moveColumn(self.playerNumber,
+                                              num,
+                                              board.OPP_DICT[direction])
 
-                traverseGraph = traverse.TraversalGraph(self.board)
+                    for rotateCount in range(rotation):
+                        self.board.floatingTile.rotateCounterClockwise()
 
-                for item in items:
-                    print item
-                    if traverseGraph.findPath(location, item):
-                        print "found item"
-                        self.pushTile(direction, column)
-                        self.moveToTile(*item)
-                        return
-
-                # push the row back where it was -- this is faster than
-                # making a new copy of the board
-                self.board.floatingTilePushed = False
-
-                oppDirection = board.NORTH
-                if direction == board.NORTH:
-                    oppDirection = board.SOUTH
-
-                print "push col %d %d" % (column, oppDirection)
-                self.board.moveColumn(self.playerNumber, column, oppDirection)
 
         # give up and just push any tile
         print "Couldn't find an item"
@@ -273,10 +279,16 @@ class AIBaseClass(AISocketHandler):
                    not tile.boardItem.found:
                     items.append(tileLocation)
 
+        if not items:
+            print "Going home"
+            items = [self.startLocation]
+
         return items
 
     def moveToTile(self, column, row):
-        print "moving to %d %d" % (column, row)
+        location = self.board.players[self.playerNumber-1].location
+        print "moving from %d %d to %d %d" % \
+            (location[0], location[1], column, row)
         self.send('/move %d %d' % (column, row))
 
         self.waitForMessage(server.TEXT_PLAYER_MOVED % (self.nick, column, row))
@@ -286,6 +298,12 @@ class AIBaseClass(AISocketHandler):
         print "End the turn"
         self.send('/end')
 
+    def rotateTile(self):
+        print "rotating tile"
+        self.send('/rotate 1')
+
+        self.waitForMessage(server.TEXT_PLAYER_ROTATED_TILE)
+        print "rotated"
 
 sys.excepthook = debug
 

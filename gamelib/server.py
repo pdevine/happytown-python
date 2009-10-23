@@ -67,7 +67,7 @@ TEXT_JOIN_GAME = "*** You have joined game %s\n"
 TEXT_YOUR_TURN = "*** It's your turn\n"
 TEXT_YOU_WIN = "*** You won the game!\n"
 TEXT_PLAYER_WON = "*** %s has won the game!\n"
-TEXT_PLAYER_NUMBER = "*** You are player number %d\n"
+TEXT_PLAYER_NUMBER = "*** You are player number %d (%d, %d)\n"
 TEXT_PLAYER_JOINED_GAME = "*** %s has joined the game\n"
 TEXT_PLAYER_LEFT_GAME = "*** %s has left the game\n"
 TEXT_PLAYER_CHANGED_NICK = "%s changed nick to %s\n"
@@ -203,7 +203,12 @@ def startGame(client, *args):
 
     for count, player in enumerate(client.game.players):
         if player:
-            notifyPlayer(client, count+1, TEXT_PLAYER_NUMBER % (count+1))
+            location = client.game.board.players[count].location
+            notifyPlayer(client,
+                         count+1,
+                         TEXT_PLAYER_NUMBER % (count+1,
+                                               location[0],
+                                               location[1]))
 
     # the player who starts the game isn't always the player whose turn
     # it is first
