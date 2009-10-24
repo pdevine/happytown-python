@@ -15,6 +15,13 @@ EAST = 2
 SOUTH = 4
 WEST = 8
 
+OPP_DICT = {
+    1 : 4,
+    2 : 8,
+    4 : 1,
+    8 : 2
+}
+
 PLAYER_1 = 1
 PLAYER_2 = 2
 PLAYER_3 = 4
@@ -501,7 +508,7 @@ class Board(object):
                 items.append('%d%d%d' % (column, row, playerCount))
 
         itemCount = len(items)
-        buf.append(str(itemCount))
+        buf.append('%02d' % itemCount)
         buf += items
 
         buf.append(str(self.playerTurn))
@@ -531,6 +538,7 @@ class Board(object):
         #    1                  player turn
         #    1                  floating tile pushed 0 / 1
         #    1                  floating tile directions
+        #    1                  game over 0 / 1
 
 
         self.columns = int(boardBuffer[0])
@@ -562,8 +570,9 @@ class Board(object):
             self.players.append(playerObj)
             count += 2
 
-        numItems = int(boardBuffer[count])
-        count += 1
+        numItems = int(boardBuffer[count] + boardBuffer[count+1])
+        print "items = " + str(numItems)
+        count += 2
         for itemNumber in range(numItems):
             column = int(boardBuffer[count])
             row = int(boardBuffer[count+1])
