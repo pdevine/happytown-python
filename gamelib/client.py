@@ -5,6 +5,7 @@ import random
 import menu
 import character
 import client_board
+import client_network
 
 from pyglet.window import key
 
@@ -78,37 +79,44 @@ class NetworkGame(object):
 
 #title = Title()
 gameBoard = client_board.Board(demo=True)
-menu = menu.NewGameMenu()
-#person = character.Character()
+#menu = menu.NewGameMenu()
+person = character.Character()
+#networkClient = client_network.ClientHandler()
+#networkClient.joinFirstGame()
 
 @window.event
 def on_draw():
     window.clear()
     gameBoard.draw()
     #title.draw()
-    menu.draw()
+    #menu.draw()
     #person.draw()
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
-    menu.mousePress(x, y, button, modifiers)
+    #menu.mousePress(x, y, button, modifiers)
+    pass
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
-    menu.mouseRelease(x, y, button, modifiers)
+    #menu.mouseRelease(x, y, button, modifiers)
+    pass
 
 @window.event
 def on_mouse_motion(x, y, dx, dy):
-    menu.mouseMotion(x, y, dx, dy)
+    #menu.mouseMotion(x, y, dx, dy)
+    pass
 
 @window.event
 def on_key_release(symbol, modifiers):
-    menu.keyRelease(symbol, modifiers)
+    #menu.keyRelease(symbol, modifiers)
+    pass
 
 @window.event
 def on_key_press(symbol, modifiers):
-    menu.keyPress(symbol, modifiers)
+    #menu.keyPress(symbol, modifiers)
     #person.keyPress(symbol, modifiers)
+    pass
 
 pyglet.app.run()
 

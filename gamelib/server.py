@@ -144,6 +144,7 @@ def leaveGame(client, *args):
 
 def cleanupGame(gameKey):
     '''Destroy a game board which has no more players left'''
+    print "Cleanup games"
     game = clientDict.get(gameKey)
 
     if game:
@@ -508,7 +509,11 @@ class NetworkPlayer(object):
         return -1
 
     def send(self, msg):
-        self.client.send('%04d' % len(msg) + msg)
+        try:
+            self.client.send('%04d' % len(msg) + msg)
+        except:
+            print "client not listening: %s" % msg
+            pass
 
 
 #
@@ -610,6 +615,10 @@ def main():
                                 del clientDict[sock]
                 else:
                     buf = "%s left\n" % clientDict[sock].name
+                    if clientDict[sock].game:
+                        clientDict[sock].game.players.remove(clientDict[sock])
+                        cleanupGame(clientDict[sock].game.gameKey)
+                        clientDict[sock].game = None
                     sock.close()
                     input.remove(sock)
                     del clientDict[sock]
