@@ -102,14 +102,10 @@ class AnimateBoard(object):
         count = 0
         for row in self.sprites:
             for tile in row:
-                tile.finalPos = tile.x
                 tile.x = 1024 + tile.x + (count * 81)
-                tile.moveDirection = board.WEST
                 tile.moveSpeed = 400
                 self.movingTiles.append(tile)
             count += 1
-
-
 
 class Board(AnimateBoard):
     def __init__(self, columns=COLUMNS, rows=ROWS, demo=False):
@@ -166,7 +162,6 @@ class Board(AnimateBoard):
 
             for tile in self.sprites[pos]:
                 tile.moveToX = tile.x + 81
-                tile.moveDirection = direction
                 self.movingTiles.append(tile)
 
             self.floatingTile = self.sprites[pos][-1]
@@ -181,7 +176,6 @@ class Board(AnimateBoard):
 
             for tile in self.sprites[pos]:
                 tile.moveToX = tile.x - 81
-                tile.moveDirection = direction
                 self.movingTiles.append(tile)
 
             self.floatingTile = self.sprites[pos][0]
@@ -200,7 +194,6 @@ class Board(AnimateBoard):
             for row in range(rows):
                 tile = self.sprites[row][pos]
                 tile.moveToY = tile.y + 81
-                tile.moveDirection = direction
                 self.movingTiles.append(tile)
                 if row < rows-1:
                     self.sprites[row][pos] = self.sprites[row+1][pos]
@@ -216,14 +209,12 @@ class Board(AnimateBoard):
             self.floatingTile.y = self.sprites[0][pos].y + 81
             self.floatingTile.moveToX = self.sprites[0][pos].x
             self.floatingTile.moveToY = self.sprites[0][pos].y
-            self.floatingTile.moveDirection = direction
 
             newFloatingTile = self.sprites[rows-1][pos]
 
             for row in range(rows)[::-1]:
                 tile = self.sprites[row][pos]
                 tile.moveToY = tile.y - 81
-                tile.moveDirection = direction
                 self.movingTiles.append(tile)
                 if row > 0:
                     self.sprites[row][pos] = self.sprites[row-1][pos]
@@ -241,36 +232,34 @@ class Board(AnimateBoard):
 
                 rad = atan2(opp, adj)
 
-                tile.velocityX = 8 * sin(rad)
-                tile.velocityY = 15 * cos(rad)
+                tile.velocityX = tile.moveSpeed * dt * sin(rad)
+                tile.velocityY = tile.moveSpeed * dt * cos(rad)
 
                 distance = sqrt(pow(tile.moveToX - tile.x, 2) + \
                                 pow(tile.moveToY - tile.y, 2))
 
-                if distance < 10:
-                    tile.x = tile.moveToX
-                    tile.y = tile.moveToY
+                if distance < 1:
                     tile.reset()
                     self.movingTiles.remove(tile)
                     continue
                 elif distance < 100:
-                    braking = log(distance, 10) - 1
+                    braking = log(distance+10, 10) - 1
                     tile.velocityX *= braking
                     tile.velocityY *= braking
 
                 tile.x += tile.velocityX
                 tile.y += tile.velocityY
 
-        #if not self.movingTiles:
-        #    self.moving = False
-        #    direction = random.choice([board.NORTH,
-        #                               board.EAST,
-        #                               board.SOUTH,
-        #                               board.WEST])
-        #    if direction in [board.NORTH, board.SOUTH]:
-        #        self.moveTiles(random.randint(0, COLUMNS-1), direction)
-        #    else:
-        #        self.moveTiles(random.randint(0, ROWS-1), direction)
+#        if not self.movingTiles:
+#            self.moving = False
+#            direction = random.choice([board.NORTH,
+#                                       board.EAST,
+#                                       board.SOUTH,
+#                                       board.WEST])
+#            if direction in [board.NORTH, board.SOUTH]:
+#                self.moveTiles(random.randint(0, COLUMNS-1), direction)
+#            else:
+#                self.moveTiles(random.randint(0, ROWS-1), direction)
 
     def draw(self):
         self.tileBatch.draw()
