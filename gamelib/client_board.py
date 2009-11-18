@@ -2,6 +2,8 @@ import pyglet
 import random
 import board
 
+from math import sqrt, sin, cos, atan2, log
+
 TILE_IMAGES = (
     '',
     pyglet.image.load('../data/tile-i3.png'),
@@ -34,11 +36,13 @@ class Tile(pyglet.sprite.Sprite):
         self.x = x
         self.y = y
 
+        self.velocityX = 0
+        self.velocityY = 0
+
         self.moveToX = x
         self.moveToY = y
 
-        self.moveSpeed = 40
-        self.moveDirection = 0
+        self.slowDown = True
 
         self.rotateTo = (0, 0)
         #self.rotation = tileRotation * 90
@@ -232,30 +236,30 @@ class Board(AnimateBoard):
     def update(self, dt):
         if self.moving:
             for tile in self.movingTiles:
-                if tile.moveDirection == board.EAST:
-                    if tile.x < tile.moveToX:
-                        tile.x += dt * tile.moveSpeed
-                    else:
-                        tile.reset()
-                        self.movingTiles.remove(tile)
-                elif tile.moveDirection == board.WEST:
-                    if tile.x > tile.moveToX:
-                        tile.x -= dt * tile.moveSpeed
-                    else:
-                        tile.reset()
-                        self.movingTiles.remove(tile)
-                elif tile.moveDirection == board.NORTH:
-                    if tile.y < tile.moveToY:
-                        tile.y += dt * tile.moveSpeed
-                    else:
-                        tile.reset()
-                        self.movingTiles.remove(tile)
-                elif tile.moveDirection == board.SOUTH:
-                    if tile.y > tile.moveToY:
-                        tile.y -= dt * tile.moveSpeed
-                    else:
-                        tile.reset()
-                        self.movingTiles.remove(tile)
+                opp = tile.moveToX - tile.x
+                adj = tile.moveToY - tile.y
+
+                rad = atan2(opp, adj)
+
+                tile.velocityX = 8 * sin(rad)
+                tile.velocityY = 15 * cos(rad)
+
+                distance = sqrt(pow(tile.moveToX - tile.x, 2) + \
+                                pow(tile.moveToY - tile.y, 2))
+
+                if distance < 10:
+                    tile.x = tile.moveToX
+                    tile.y = tile.moveToY
+                    tile.reset()
+                    self.movingTiles.remove(tile)
+                    continue
+                elif distance < 100:
+                    braking = log(distance, 10) - 1
+                    tile.velocityX *= braking
+                    tile.velocityY *= braking
+
+                tile.x += tile.velocityX
+                tile.y += tile.velocityY
 
         #if not self.movingTiles:
         #    self.moving = False
