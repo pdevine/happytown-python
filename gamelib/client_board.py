@@ -49,7 +49,7 @@ class Tile(pyglet.sprite.Sprite):
         self.slowDown = True
 
         self.rotateTo = (0, 0)
-        #self.rotation = tileRotation * 90
+        self.rotation = tileRotation * 90
 
         self.color = color
 
@@ -170,6 +170,8 @@ class Board(AnimateBoard):
                 self.floatingTile.y = tile.y
                 self.floatingTile.moveToY = tile.y
                 self.floatingTile.moveToX = tile.x
+                self.floatingTile.row = pos
+                self.floatingTile.column = -1
 
                 self.movingTiles.insert(0, self.floatingTile)
                 self.sprites.append(self.floatingTile)
@@ -179,6 +181,7 @@ class Board(AnimateBoard):
 
                 for tile in self.movingTiles:
                     tile.moveToX = tile.x + 81
+                    tile.column += 1
 
 
             elif direction == board.WEST:
@@ -187,6 +190,8 @@ class Board(AnimateBoard):
                 self.floatingTile.y = tile.y
                 self.floatingTile.moveToX = tile.x
                 self.floatingTile.moveToY = tile.y
+                self.floatingTile.row = pos
+                self.floatingTile.column = self.columns
 
                 self.movingTiles.append(self.floatingTile)
                 self.sprites.append(self.floatingTile)
@@ -196,6 +201,7 @@ class Board(AnimateBoard):
 
                 for tile in self.movingTiles:
                     tile.moveToX = tile.x - 81
+                    tile.column -= 1
 
 
         elif direction in [board.NORTH, board.SOUTH]:
@@ -212,6 +218,8 @@ class Board(AnimateBoard):
                 self.floatingTile.y = tile.y - 81
                 self.floatingTile.moveToX = tile.x
                 self.floatingTile.moveToY = tile.y
+                self.floatingTile.column = pos
+                self.floatingTile.row = self.rows
 
                 self.movingTiles.append(self.floatingTile)
                 self.sprites.append(self.floatingTile)
@@ -221,6 +229,7 @@ class Board(AnimateBoard):
 
                 for tile in self.movingTiles:
                     tile.moveToY = tile.y + 81
+                    tile.row -= 1
 
             elif direction == board.SOUTH:
                 tile = self.movingTiles[0]
@@ -228,6 +237,8 @@ class Board(AnimateBoard):
                 self.floatingTile.y = tile.y + 81
                 self.floatingTile.moveToX = tile.x
                 self.floatingTile.moveToY = tile.y
+                self.floatingTile.column = pos
+                self.floatingTile.row = -1
 
                 self.movingTiles.insert(0, self.floatingTile)
                 self.sprites.append(self.floatingTile)
@@ -237,6 +248,7 @@ class Board(AnimateBoard):
 
                 for tile in self.movingTiles:
                     tile.moveToY = tile.y - 81
+                    tile.row += 1
 
 
     def update(self, dt):
@@ -265,16 +277,16 @@ class Board(AnimateBoard):
                 tile.x += tile.velocityX
                 tile.y += tile.velocityY
 
-#        if not self.movingTiles:
-#            self.moving = False
-#            direction = random.choice([board.NORTH,
-#                                       board.EAST,
-#                                       board.SOUTH,
-#                                       board.WEST])
-#            if direction in [board.NORTH, board.SOUTH]:
-#                self.moveTiles(random.randint(0, COLUMNS-1), direction)
-#            else:
-#                self.moveTiles(random.randint(0, ROWS-1), direction)
+        if not self.movingTiles:
+            self.moving = False
+            direction = random.choice([board.NORTH,
+                                       board.EAST,
+                                       board.SOUTH,
+                                       board.WEST])
+            if direction in [board.NORTH, board.SOUTH]:
+                self.moveTiles(random.randint(0, self.columns-1), direction)
+            else:
+                self.moveTiles(random.randint(0, self.rows-1), direction)
 
     def draw(self):
         self.tileBatch.draw()
@@ -285,8 +297,7 @@ if __name__ == '__main__':
     window = pyglet.window.Window(1024, 768)
 
     b = Board(7, 7)
-    #b.slideIn()
-    b.moveTiles(1, board.EAST)
+    b.slideIn()
 
     #pyglet.clock.unschedule(b.update)
 
