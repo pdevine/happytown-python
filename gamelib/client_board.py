@@ -121,6 +121,7 @@ class Board(AnimateBoard):
         self.rows = rows
 
         # make the colour dimmer if we're not running in a real game
+        self.demo = demo
         color = (255, 255, 255)
         if demo:
             color = (150, 150, 150)
@@ -182,6 +183,7 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToX = tile.x + 81
                     tile.column += 1
+                    tile.moveSpeed = 100
 
 
             elif direction == board.WEST:
@@ -202,6 +204,7 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToX = tile.x - 81
                     tile.column -= 1
+                    tile.moveSpeed = 100
 
 
         elif direction in [board.NORTH, board.SOUTH]:
@@ -230,6 +233,7 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToY = tile.y + 81
                     tile.row -= 1
+                    tile.moveSpeed = 100
 
             elif direction == board.SOUTH:
                 tile = self.movingTiles[0]
@@ -249,6 +253,7 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToY = tile.y - 81
                     tile.row += 1
+                    tile.moveSpeed = 100
 
 
     def update(self, dt):
@@ -277,7 +282,7 @@ class Board(AnimateBoard):
                 tile.x += tile.velocityX
                 tile.y += tile.velocityY
 
-        if not self.movingTiles:
+        if self.demo and not self.movingTiles:
             self.moving = False
             direction = random.choice([board.NORTH,
                                        board.EAST,
@@ -324,6 +329,8 @@ if __name__ == '__main__':
         elif symbol == key.LEFT:
             b.rotateTiles(ANTICLOCKWISE)
             print "left"
+        elif symbol == key.SPACE:
+            b.demo = not b.demo
 
     @window.event
     def on_key_press(symbol, modifiers):
