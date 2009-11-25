@@ -53,7 +53,6 @@ class Tile(pyglet.sprite.Sprite):
 
         self.color = color
 
-        pyglet.clock.schedule(self.update)
 
     def rotate(self, direction):
         if direction == CLOCKWISE:
@@ -92,12 +91,14 @@ class Tile(pyglet.sprite.Sprite):
             else:
                 self.rotation = self.rotateTo[0]
                 self.rotateTo = (0, 0)
+                pyglet.clock.unschedule(self.update)
         elif self.rotateTo[1] == ANTICLOCKWISE:
             if self.rotation > self.rotateTo[0]:
                 self.rotation -= self.rotationSpeed * dt
             else:
                 self.rotation = self.rotateTo[0]
                 self.rotateTo = (0, 0)
+                pyglet.clock.unschedule(self.update)
 
 class AnimateBoard(object):
     def slideIn(self):
@@ -109,8 +110,16 @@ class AnimateBoard(object):
             tile.moveSpeed = 700
             self.movingTiles.append(tile)
 
+    def pourIn(self):
+        self.moving = True
+        for tile in self.sprites:
+            tile.y = 768 + tile.y + (self.rows - tile.row) * 60
+            tile.moveSpeed = 700
+            self.movingTiles.append(tile)
+
 class Board(AnimateBoard):
-    def __init__(self, columns=COLUMNS, rows=ROWS, demo=False):
+    def __init__(self, columns=COLUMNS, rows=ROWS, demo=False,
+                 fadeColor=(100, 100, 100)):
         self.tileBatch = pyglet.graphics.Batch()
         self.sprites = []
 
@@ -122,22 +131,21 @@ class Board(AnimateBoard):
 
         # make the colour dimmer if we're not running in a real game
         self.demo = demo
-        color = (255, 255, 255)
-        if demo:
-            color = (150, 150, 150)
+        self.color = (255, 255, 255)
+        self.fadeColor = fadeColor
 
         for y in range(rows):
             for x in range(columns):
                 self.sprites.append(Tile(x * 81 + OFFSET_X,
                                          768 - (y * 81) - OFFSET_Y,
                                          x, y,
-                                         color=color,
+                                         color=self.color,
                                          tileType=random.randint(1, 3),
                                          tileRotation=random.randint(0, 3),
                                          batch=self.tileBatch))
 
         self.floatingTile = Tile(-100, -100, -1, -1,
-                                 color=color,
+                                 color=self.color,
                                  tileType=random.randint(1, 3),
                                  tileRotation=random.randint(0, 3),
                                  batch=self.tileBatch)
@@ -146,6 +154,7 @@ class Board(AnimateBoard):
 
     def rotateTiles(self, direction=CLOCKWISE):
         for tile in self.sprites:
+            pyglet.clock.schedule(tile.update)
             tile.rotate(direction)
 
     def moveTiles(self, pos, direction):
@@ -257,6 +266,21 @@ class Board(AnimateBoard):
 
 
     def update(self, dt):
+        if not self.movingTiles and self.color != self.fadeColor:
+            colors = []
+            for count, val in enumerate(self.color):
+                if val > self.fadeColor[count]:
+                    colors.append(
+                        max(self.fadeColor[count], int(val - 10 * dt)))
+                else:
+                    colors.append(self.fadeColor[count])
+            self.color = tuple(colors)
+
+            for tile in self.sprites:
+                tile.color = self.color
+
+            self.floatingTile.color = self.color
+
         if self.moving:
             for tile in self.movingTiles:
                 opp = tile.moveToX - tile.x
@@ -266,6 +290,9 @@ class Board(AnimateBoard):
 
                 tile.velocityX = tile.moveSpeed * dt * sin(rad)
                 tile.velocityY = tile.moveSpeed * dt * cos(rad)
+
+                #tile.velocityX = tile.moveSpeed * dt * sin(tile.rotation)
+                #tile.velocityY = tile.moveSpeed * dt * cos(tile.rotation)
 
                 distance = sqrt(pow(tile.moveToX - tile.x, 2) + \
                                 pow(tile.moveToY - tile.y, 2))
@@ -282,7 +309,7 @@ class Board(AnimateBoard):
                 tile.x += tile.velocityX
                 tile.y += tile.velocityY
 
-        if self.demo and not self.movingTiles:
+        if self.demo and not self.movingTiles and self.color == self.fadeColor:
             self.moving = False
             direction = random.choice([board.NORTH,
                                        board.EAST,
@@ -302,7 +329,7 @@ if __name__ == '__main__':
     window = pyglet.window.Window(1024, 768)
 
     b = Board(7, 7)
-    b.slideIn()
+    b.pourIn()
 
     #pyglet.clock.unschedule(b.update)
 

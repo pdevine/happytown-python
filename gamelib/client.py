@@ -79,6 +79,7 @@ class NetworkGame(object):
 
 #title = Title()
 gameBoard = client_board.Board(demo=True)
+gameBoard.pourIn()
 #menu = menu.NewGameMenu()
 person = character.Character()
 #networkClient = client_network.ClientHandler()
