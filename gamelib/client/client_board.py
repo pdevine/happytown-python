@@ -6,9 +6,9 @@ from math import sqrt, sin, cos, atan2, log
 
 TILE_IMAGES = (
     '',
-    pyglet.image.load('../data/tile-i3.png'),
-    pyglet.image.load('../data/tile-l3.png'),
-    pyglet.image.load('../data/tile-t3.png'),
+    pyglet.image.load('../../data/tile-i3.png'),
+    pyglet.image.load('../../data/tile-l3.png'),
+    pyglet.image.load('../../data/tile-t3.png'),
 )
 
 for img in TILE_IMAGES:

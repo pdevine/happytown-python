@@ -3,7 +3,9 @@ import colorsys
 import pyglet
 from pyglet.window import key
 
-FACES = pyglet.image.load('../data/faces.png')
+sys.path.append('../')
+
+FACES = pyglet.image.load('../../data/faces.png')
 
 class Menu(object):
     def __init__(self, labels=None, labelColor=(255, 255, 255, 255),
@@ -252,7 +254,7 @@ class NewGameMenu(object):
 
 
 class ShadowImage(pyglet.sprite.Sprite):
-    def __init__(self, imageName='../data/spartan.png'):
+    def __init__(self, imageName='../../data/spartan.png'):
         img = pyglet.image.load(imageName)
         pyglet.sprite.Sprite.__init__(self, img)
 

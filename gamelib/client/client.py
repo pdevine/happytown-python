@@ -14,8 +14,8 @@ import xmlrpclib
 window = pyglet.window.Window(1024, 768)
 #window = pyglet.window.Window(fullscreen=True)
 
-pyglet.font.add_file('../data/depraved.ttf')
-pyglet.font.add_file('../data/jamaistevie.ttf')
+pyglet.font.add_file('../../data/depraved.ttf')
+pyglet.font.add_file('../../data/jamaistevie.ttf')
 
 class Title(object):
     def __init__(self):
