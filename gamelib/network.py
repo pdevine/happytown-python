@@ -15,6 +15,8 @@ import traverse
 import random
 import errno
 
+import pyglet
+
 def debug(exceptType, value, tb):
     import traceback, pdb
     traceback.print_exception(exceptType, value, tb)
@@ -22,9 +24,11 @@ def debug(exceptType, value, tb):
 
     pdb.pm()
 
+CLIENT_CHUNK_LEN = 4
+
 class ClientSocketHandler(object):
-    def __init__(self, sock=None):
-        self.blocking = True
+    def __init__(self, sock=None, blocking=True):
+        self.blocking = blocking
 
         if sock is None:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -34,6 +38,70 @@ class ClientSocketHandler(object):
         self.msg = ''
         self.chunk = ''
 
+        self._msgLenChunk = ''
+        self._msgChunk = ''
+
+        self.OutgoingQueue = []
+        self.IncomingQueue = []
+
+        if not self.blocking:
+            pyglet.clock.schedule(self.update)
+
+    def update(self, dt):
+        try:
+            if len(self._msgLenChunk) < CLIENT_CHUNK_LEN:
+                self._msgLenChunk += \
+                    self.sock.recv(CLIENT_CHUNK_LEN - len(self._msgLenChunk))
+
+        except socket.error, args:
+            return
+
+        if len(self._msgLenChunk) == CLIENT_CHUNK_LEN:
+            print CLIENT_CHUNK_LEN
+            print self._msgLenChunk
+            try:
+                print '[' + self._msgChunk + ']'
+                print '[[' + self._msgLenChunk + ']]'
+
+                if len(self._msgChunk) < int(self._msgLenChunk):
+                    self._msgChunk += \
+                        self.sock.recv(int(self._msgLenChunk) -
+                                       len(self._msgChunk))
+
+            except socket.error, args:
+                return
+
+        print '[' + self._msgChunk + ']'
+        print '[[' + self._msgLenChunk + ']]'
+
+        if self._msgChunk and len(self._msgChunk) == int(self._msgLenChunk):
+            self.IncomingQueue.append(self._msgChunk)
+            self._msgChunk = ''
+            self._msgLenChunk = ''
+
+#            msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
+
+#            try:
+#                msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
+#                print '[' + msgLenChunk + ']'
+#                if len(msgLenChunk) == CLIENT_CHUNK_LEN:
+#                    msg = self.sock.recv(int(msgLenChunk))
+#                    if len(msg) == int(msgLenChunk):
+#                        print '[[' + msg + ']]'
+#                        return msg
+#                    else:
+#                        print 'partial message:'
+#                        print '[[' + msg + ']]'
+#            except socket.error, args:
+#                print args
+#                # XXX - 35 = resource temp unavailable
+#                if args[0] in [11, 35]:
+#                    print "socket busy"
+#                    if retry:
+#                        return self.receive(retry=True)
+#                    pass
+
+
     def connect(self, host, port):
         try:
             self.sock.connect((host, port))
@@ -42,6 +110,7 @@ class ClientSocketHandler(object):
                 pass
 
     def send(self, msg):
+        print "msg = %s" % msg
         totalSent = 0
         while totalSent < len(msg):
             sent = self.sock.send(msg[totalSent:])
@@ -50,13 +119,13 @@ class ClientSocketHandler(object):
 
             totalSent += sent
 
-    def receive(self):
+    def receive(self, retry=False):
         if self.blocking:
             msg = ''
             msgLen = ''
  
-            while len(msgLen) < 4:
-                msgLenChunk = self.sock.recv(4)
+            while len(msgLen) < CLIENT_CHUNK_LEN:
+                msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
                 if msgLenChunk == '':
                     raise RuntimeError, "socket connection broken"
 
@@ -67,18 +136,26 @@ class ClientSocketHandler(object):
                 msg += chunk
             
             return msg
-        else:
-            try:
-                msgLenChunk = self.sock.recv(4)
-                print '[' + msgLenChunk + ']'
-                if len(msgLenChunk) == 4:
-                    msg = self.sock.recv(int(msgLenChunk))
-                    if len(msg) == int(msgLenChunk):
-                        return msg
-            except socket.error, args:
-                # XXX - 35 = resource temp unavailable
-                if args[0] == 35:
-                    pass
+#        else:
+#            try:
+#                msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
+#                print '[' + msgLenChunk + ']'
+#                if len(msgLenChunk) == CLIENT_CHUNK_LEN:
+#                    msg = self.sock.recv(int(msgLenChunk))
+#                    if len(msg) == int(msgLenChunk):
+#                        print '[[' + msg + ']]'
+#                        return msg
+#                    else:
+#                        print 'partial message:'
+#                        print '[[' + msg + ']]'
+#            except socket.error, args:
+#                print args
+#                # XXX - 35 = resource temp unavailable
+#                if args[0] in [11, 35]:
+#                    print "socket busy"
+#                    if retry:
+#                        return self.receive(retry=True)
+#                    pass
 
     def waitForMessage(self, waitMsg):
         while True:
@@ -94,11 +171,10 @@ class ClientBaseHandler(ClientSocketHandler):
                  nick='foobar',
                  blocking=False):
 
-        ClientSocketHandler.__init__(self)
+        ClientSocketHandler.__init__(self, blocking=blocking)
         self.sock.setblocking(int(blocking))
 
         self.playerNumber = 0
-        self.blocking = blocking
 
         self.connect(host, port)
         self.setNick(nick)
@@ -108,19 +184,24 @@ class ClientBaseHandler(ClientSocketHandler):
 
     def setNick(self, nick):
         for count in range(1, 5):
+            print "nick = %s" % nick
             self.send('/nick %s' % nick)
-            while True:
-                msg = self.receive()
+            if self.blocking:
+                while True:
+                    msg = self.receive()
 
-                if msg == server.TEXT_SET_NICK % nick:
-                    print "Nick set to %s" % nick
-                    self.nick = nick
-                    return
-                elif msg == server.ERROR_EXISTING_NICK:
-                    break
-            nick += str(count)
+                    if msg == server.TEXT_SET_NICK % nick:
+                        print "Nick set to %s" % nick
+                        self.nick = nick
+                        return
+                    elif msg == server.ERROR_EXISTING_NICK:
+                        break
+                nick += str(count)
+            else:
+                print self.IncomingQueue
+                pass
 
-        print "Couldn't set nick!"
+            print "Couldn't set nick!"
 
     def joinGame(self, gameKey):
         self.send('/join %s' % gameKey)

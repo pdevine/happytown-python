@@ -3,17 +3,28 @@ import re
 import network
 import server
 
+import pyglet
+
 class ClientHandler(network.ClientBaseHandler):
     def __init__(self):
         network.ClientBaseHandler.__init__(self)
 
+#        pyglet.clock.schedule(self.update)
+#
+#    def update(self, tick):
+#        self.receive()
+
     def joinFirstGame(self):
         self.send('/list')
 
-        games = self.receive()
+        games = self.receive(retry=True)
 
         # XXX - this will need to change if the /list command
         #       changes what it returns
+
+        if not games:
+            print "No games found"
+            return
 
         games = games.strip()
         print "[" + games + "]"

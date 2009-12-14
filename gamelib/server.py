@@ -589,7 +589,12 @@ def main():
                 running = False
 
             else:
-                data = sock.recv(size)
+                try:
+                    data = sock.recv(size)
+                except:
+                    input.remove(sock)
+                    del clientDict[sock]
+                    continue
                 if data:
                     # all commands start with /
                     if data.startswith('/'):
