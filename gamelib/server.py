@@ -70,7 +70,7 @@ TEXT_PLAYER_WON = "*** %s has won the game!\n"
 TEXT_PLAYER_NUMBER = "*** You are player number %d (%d, %d)\n"
 TEXT_PLAYER_JOINED_GAME = "*** %s has joined the game\n"
 TEXT_PLAYER_LEFT_GAME = "*** %s has left the game\n"
-TEXT_PLAYER_CHANGED_NICK = "%s changed nick to %s\n"
+TEXT_PLAYER_CHANGED_NICK = "*** %s changed nick to %s\n"
 TEXT_PLAYER_STARTED_GAME = "*** %s has started the game\n"
 TEXT_PLAYER_CREATED_GAME = "*** %s has created new game %s\n"
 TEXT_PLAYER_PUSHED_TILE = "*** %s pushed the floating tile\n"
@@ -598,26 +598,30 @@ def main():
                 if data:
                     # all commands start with /
                     if data.startswith('/'):
-                        tokens = data.split()
-                        print tokens
-                        cmd = commandDict.get(tokens[0])
-                        if cmd:
-                            buf = cmd(clientDict[sock], *tokens[1:])
-                            if buf:
+                        cmds = data.split('\n')
+                        print cmds
+                        for cmdLine in cmds:
+                            tokens = cmdLine.split()
+                            print tokens
+                            cmd = commandDict.get(tokens[0])
+                            if cmd:
+                                buf = cmd(clientDict[sock], *tokens[1:])
+                                if buf:
+                                    try:
+                                        sock.send('%04d' % len(buf) + buf)
+                                    except:
+                                        buf = "%s left\n" % \
+                                            clientDict[sock].name
+                                        input.remove(sock)
+                                        del clientDict[sock]
+                            else:
+                                buf = ERROR_UNKNOWN_COMMAND % tokens[0]
                                 try:
                                     sock.send('%04d' % len(buf) + buf)
                                 except:
                                     buf = "%s left\n" % clientDict[sock].name
                                     input.remove(sock)
                                     del clientDict[sock]
-                        else:
-                            buf = ERROR_UNKNOWN_COMMAND % tokens[0]
-                            try:
-                                sock.send('%04d' % len(buf) + buf)
-                            except:
-                                buf = "%s left\n" % clientDict[sock].name
-                                input.remove(sock)
-                                del clientDict[sock]
                 else:
                     buf = "%s left\n" % clientDict[sock].name
                     if clientDict[sock].game:

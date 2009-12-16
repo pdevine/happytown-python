@@ -15,7 +15,12 @@ import traverse
 import random
 import errno
 
+sys.path.append('../')
+import events
+
 import pyglet
+
+
 
 def debug(exceptType, value, tb):
     import traceback, pdb
@@ -26,7 +31,33 @@ def debug(exceptType, value, tb):
 
 CLIENT_CHUNK_LEN = 4
 
+# Process all of the TEXT_ strings in server into usable regular
+# expressions
+
+_TextStrings = [x for x in dir(server) if x.startswith('TEXT_')]
+STRING_CACHE = {}
+
+for textStrName in _TextStrings:
+    buf = getattr(server, textStrName)
+    buf = buf.replace('*', '\*')
+    buf = buf.replace('(', '\(')
+    buf = buf.replace(')', '\)')
+    buf = buf.replace('%s', '(\w+)')
+    buf = buf.replace('%d', '(\d+)')
+
+    STRING_CACHE[textStrName] = buf
+
+
 class ClientSocketHandler(object):
+
+    def setNickname(self, matchObj):
+        print matchObj.groups()
+        events.fireEvent("ChangeNick", matchObj.groups()[0])
+
+    TextFunctions = {
+        STRING_CACHE['TEXT_SET_NICK'] : setNickname,
+    }
+
     def __init__(self, sock=None, blocking=True):
         self.blocking = blocking
 
@@ -41,13 +72,16 @@ class ClientSocketHandler(object):
         self._msgLenChunk = ''
         self._msgChunk = ''
 
-        self.OutgoingQueue = []
         self.IncomingQueue = []
 
         if not self.blocking:
             pyglet.clock.schedule(self.update)
 
     def update(self, dt):
+        self.handleNetwork()
+        self.consumeQueue()
+
+    def handleNetwork(self):
         try:
             if len(self._msgLenChunk) < CLIENT_CHUNK_LEN:
                 self._msgLenChunk += \
@@ -101,6 +135,18 @@ class ClientSocketHandler(object):
 #                        return self.receive(retry=True)
 #                    pass
 
+    def consumeQueue(self):
+        for count in range(len(self.IncomingQueue)):
+            msg = self.IncomingQueue[count]
+            print msg
+            if msg.startswith('***'):
+                for textStr in self.TextFunctions.keys():
+                    print '[[[' + textStr
+                    mObj = re.match(textStr, msg)
+                    if mObj:
+                        self.TextFunctions[textStr](self, mObj)
+
+        self.IncomingQueue = []
 
     def connect(self, host, port):
         try:
@@ -117,51 +163,14 @@ class ClientSocketHandler(object):
             if sent == 0:
                 raise RuntimeError, "socket connection broken"
 
+            print dir(self.sock)
             totalSent += sent
 
     def receive(self, retry=False):
-        if self.blocking:
-            msg = ''
-            msgLen = ''
- 
-            while len(msgLen) < CLIENT_CHUNK_LEN:
-                msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
-                if msgLenChunk == '':
-                    raise RuntimeError, "socket connection broken"
-
-                msgLen += msgLenChunk
-
-            while len(msg) < int(msgLen):
-                chunk = self.sock.recv(int(msgLen))
-                msg += chunk
-            
-            return msg
-#        else:
-#            try:
-#                msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
-#                print '[' + msgLenChunk + ']'
-#                if len(msgLenChunk) == CLIENT_CHUNK_LEN:
-#                    msg = self.sock.recv(int(msgLenChunk))
-#                    if len(msg) == int(msgLenChunk):
-#                        print '[[' + msg + ']]'
-#                        return msg
-#                    else:
-#                        print 'partial message:'
-#                        print '[[' + msg + ']]'
-#            except socket.error, args:
-#                print args
-#                # XXX - 35 = resource temp unavailable
-#                if args[0] in [11, 35]:
-#                    print "socket busy"
-#                    if retry:
-#                        return self.receive(retry=True)
-#                    pass
+        pass
 
     def waitForMessage(self, waitMsg):
-        while True:
-            msg = self.receive()
-            if msg == waitMsg:
-                return
+        pass
 
 
 class ClientBaseHandler(ClientSocketHandler):
@@ -183,25 +192,21 @@ class ClientBaseHandler(ClientSocketHandler):
         self.startLocation = (-1, -1)
 
     def setNick(self, nick):
-        for count in range(1, 5):
-            print "nick = %s" % nick
-            self.send('/nick %s' % nick)
-            if self.blocking:
-                while True:
-                    msg = self.receive()
+        print "nick = %s" % nick
+        self.send('/nick %s\n' % nick)
+            #if self.blocking:
+            #    while True:
+            #        msg = self.receive()
 
-                    if msg == server.TEXT_SET_NICK % nick:
-                        print "Nick set to %s" % nick
-                        self.nick = nick
-                        return
-                    elif msg == server.ERROR_EXISTING_NICK:
-                        break
-                nick += str(count)
-            else:
-                print self.IncomingQueue
-                pass
+            #        if msg == server.TEXT_SET_NICK % nick:
+            #            print "Nick set to %s" % nick
+            #            self.nick = nick
+            #            return
+            #        elif msg == server.ERROR_EXISTING_NICK:
+            #            break
+            #    nick += str(count)
 
-            print "Couldn't set nick!"
+            #print "Couldn't set nick!"
 
     def joinGame(self, gameKey):
         self.send('/join %s' % gameKey)

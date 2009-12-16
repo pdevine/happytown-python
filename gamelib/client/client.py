@@ -2,6 +2,9 @@ import sys
 import pyglet
 import random
 
+sys.path.append('../')
+import events
+
 import menu
 import character
 import client_board
@@ -76,14 +79,15 @@ class NetworkGame(object):
             self.serverResponding = False
             self.gameList = []
 
+pyglet.clock.schedule(events.consumeEvents)
 
 #title = Title()
 gameBoard = client_board.Board(demo=True)
 gameBoard.pourIn()
 #menu = menu.NewGameMenu()
 person = character.Character()
-#networkClient = client_network.ClientHandler()
-#networkClient.joinFirstGame()
+networkClient = client_network.ClientHandler()
+networkClient.joinFirstGame()
 
 @window.event
 def on_draw():

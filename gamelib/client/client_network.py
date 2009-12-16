@@ -3,16 +3,23 @@ import re
 import network
 import server
 
+import events
+
 import pyglet
 
 class ClientHandler(network.ClientBaseHandler):
     def __init__(self):
+        events.addListener(self)
         network.ClientBaseHandler.__init__(self)
 
 #        pyglet.clock.schedule(self.update)
 #
 #    def update(self, tick):
 #        self.receive()
+
+    def ChangeNick(self, nick):
+        print "!!! Nick changed to %s" % nick
+        self.nick = nick
 
     def joinFirstGame(self):
         self.send('/list')
