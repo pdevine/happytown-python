@@ -73,10 +73,13 @@ TEXT_PLAYER_LEFT_GAME = "*** %s has left the game\n"
 TEXT_PLAYER_CHANGED_NICK = "*** %s changed nick to %s\n"
 TEXT_PLAYER_STARTED_GAME = "*** %s has started the game\n"
 TEXT_PLAYER_CREATED_GAME = "*** %s has created new game %s\n"
-TEXT_PLAYER_PUSHED_TILE = "*** %s pushed the floating tile\n"
+TEXT_PLAYER_PUSHED_TILE = "*** %s pushed the floating tile (%d, %d)\n"
 TEXT_PLAYER_MOVED = "*** %s moved to (%d, %d)\n"
 TEXT_PLAYER_ENDED_TURN = "*** %s ended the turn\n"
 TEXT_PLAYER_ROTATED_TILE = "*** You rotated the tile\n"
+TEXT_TILE_ROTATED = "*** Floating tile rotated (%d)\n"
+TEXT_CURRENT_GAMES = "*** Current games\n%s"
+TEXT_DATA = "*** DATA %s"
 
 gameBoards = {}
 clientDict = {}
@@ -96,7 +99,7 @@ def listGames(client, *args):
     buf = []
     for game in gameBoards.keys():
         buf.append('%s %d' % (game, gameBoards[game].playerCount))
-    return '\n'.join(buf) + '\n'
+    return TEXT_CURRENT_GAMES % '\n'.join(buf) + '\n'
 
 def joinGame(client, *args):
     '''Join a game which has been created but not started'''
@@ -320,8 +323,10 @@ def rotateFloatingTile(client, *args):
     try:
         if args[0].lower() in ['1', 'clockwise', 'clock']:
             client.game.board.rotateClockwise(client.getPlayerNumber())
+            notifyPlayers(client, TEXT_TILE_ROTATED % 1)
         elif args[0].lower() in ['2', 'counterclockwise', 'counter']:
             client.game.board.rotateCounterClockwise(client.getPlayerNumber())
+            notifyPlayers(client, TEXT_TILE_ROTATED % 2)
     except (board.BoardMovementError, board.GameOverError), msg:
         return "ERROR: %s\n" % str(msg)
 
@@ -337,7 +342,7 @@ def printSerializedBoard(client, *args):
     if not hasattr(client.game.board, 'board'):
         return ERROR_START_GAME
 
-    return client.game.board.serialize()
+    return TEXT_DATA % client.game.board.serialize()
 
 def moveRow(client, *args):
     '''Push the floating tile onto a row on the board'''
@@ -603,6 +608,8 @@ def main():
                         for cmdLine in cmds:
                             tokens = cmdLine.split()
                             print tokens
+                            if not tokens:
+                                continue
                             cmd = commandDict.get(tokens[0])
                             if cmd:
                                 buf = cmd(clientDict[sock], *tokens[1:])

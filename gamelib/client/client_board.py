@@ -1,13 +1,20 @@
+import sys
 import pyglet
 import random
 import board
+
+sys.path.append('..')
+import events
+import settings
+
+from pyglet.window import key
 
 from math import sqrt, sin, cos, atan2, log
 
 TILE_IMAGES = (
     '',
     pyglet.image.load('../../data/tile-i3.png'),
-    pyglet.image.load('../../data/tile-l3.png'),
+    pyglet.image.load('../../data/tile-l3-r.png'),
     pyglet.image.load('../../data/tile-t3.png'),
 )
 
@@ -55,11 +62,16 @@ class Tile(pyglet.sprite.Sprite):
 
 
     def rotate(self, direction):
+        print "[[ rotate tile ]]"
+        pyglet.clock.schedule(self.update)
+
         if direction == CLOCKWISE:
+            print "clockwise"
             if self.rotation + 90 >= 360:
                 self.rotation -= 360
             self.rotateTo = (self.rotation + 90, CLOCKWISE)
         else:
+            print "anticlockwise"
             if self.rotation - 90 <= 0:
                 self.rotation += 360
             self.rotateTo = (self.rotation - 90, ANTICLOCKWISE)
@@ -117,6 +129,13 @@ class AnimateBoard(object):
             tile.moveSpeed = 700
             self.movingTiles.append(tile)
 
+    def fallOut(self):
+        self.Moving = True
+        for tile in self.sprites:
+            tile.moveToY = -300
+            tile.moveSpeed = 700
+            self.movingTiles.append(tile)
+
 class Board(AnimateBoard):
     def __init__(self, columns=COLUMNS, rows=ROWS, demo=False,
                  fadeColor=(100, 100, 100)):
@@ -134,6 +153,8 @@ class Board(AnimateBoard):
         self.color = (255, 255, 255)
         self.fadeColor = fadeColor
 
+        self.settings = settings.GameSettings()
+
         for y in range(rows):
             for x in range(columns):
                 self.sprites.append(Tile(x * 81 + OFFSET_X,
@@ -150,11 +171,74 @@ class Board(AnimateBoard):
                                  tileRotation=random.randint(0, 3),
                                  batch=self.tileBatch)
 
+        events.addListener(self)
+
         pyglet.clock.schedule(self.update)
+
+    def boardToSprites(self):
+        gameBoard = self.settings.board
+
+        print gameBoard
+
+        # is this going to gc correctly?
+        self.sprites = []
+
+        for y in range(gameBoard.rows):
+            for x in range(gameBoard.columns):
+                self.sprites.append(
+                    Tile(x * 81 + OFFSET_X,
+                         768 - (y * 81) - OFFSET_Y,
+                         x, y,
+                         color=(255, 255, 255),
+                         tileType=gameBoard.board[y][x].tileType,
+                         tileRotation=gameBoard.board[y][x].tileRotation,
+                         batch=self.tileBatch))
+
+        self.floatingTile = \
+            Tile(800, 650, -1, -1, color=(255, 255, 255),
+                 tileType=gameBoard.floatingTile.tileType,
+                 tileRotation=gameBoard.floatingTile.tileRotation,
+                 batch=self.tileBatch)
+
+    def on_keyPressed(self, args):
+        print "!!! key pressed"
+        symbol, modifiers = args
+        if symbol == key.RIGHT:
+            self.settings.client.send('/rotate clockwise')
+        elif symbol == key.LEFT:
+            self.settings.client.send('/rotate anticlockwise')
+
+    def on_tileRotated(self, args):
+        print "!!! tile rotated"
+        print args
+
+        self.floatingTile.rotate(int(args[0]))
+
+    def on_playerSetup(self, args):
+        print "!!! player setup"
+        print args
+
+
+    def on_boardData(self, args):
+        boardData = args[0]
+        print "!!! board data = %s" % args[0]
+
+        self.settings.board.deserialize(boardData)
+        self.boardToSprites()
+
+    def on_startGame(self, args):
+        print "!!! start game"
+        self.demo = False
+        #self.fallOut()
+
+        #self.settings.fallingTiles = True
+
+    def on_playerTurn(self, args):
+        print "!!! your turn"
 
     def rotateTiles(self, direction=CLOCKWISE):
         for tile in self.sprites:
-            pyglet.clock.schedule(tile.update)
+            #pyglet.clock.schedule(tile.update)
             tile.rotate(direction)
 
     def moveTiles(self, pos, direction):
@@ -308,6 +392,9 @@ class Board(AnimateBoard):
 
                 tile.x += tile.velocityX
                 tile.y += tile.velocityY
+
+        if not self.movingTiles and self.settings.fallingTiles:
+            print "[[[ Tiles have fallen]]]"
 
         if self.demo and not self.movingTiles and self.color == self.fadeColor:
             self.moving = False

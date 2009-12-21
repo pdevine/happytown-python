@@ -8,7 +8,7 @@ import events
 import menu
 import character
 import client_board
-import client_network
+import network
 
 from pyglet.window import key
 
@@ -86,7 +86,7 @@ gameBoard = client_board.Board(demo=True)
 gameBoard.pourIn()
 #menu = menu.NewGameMenu()
 person = character.Character()
-networkClient = client_network.ClientHandler()
+networkClient = network.ClientBaseHandler()
 networkClient.joinFirstGame()
 
 @window.event
@@ -114,11 +114,13 @@ def on_mouse_motion(x, y, dx, dy):
 
 @window.event
 def on_key_release(symbol, modifiers):
+    events.fireEvent('on_keyReleased', (symbol, modifiers))
     #menu.keyRelease(symbol, modifiers)
     pass
 
 @window.event
 def on_key_press(symbol, modifiers):
+    events.fireEvent('on_keyPressed', (symbol, modifiers))
     #menu.keyPress(symbol, modifiers)
     #person.keyPress(symbol, modifiers)
     pass

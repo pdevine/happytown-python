@@ -17,6 +17,7 @@ import errno
 
 sys.path.append('../')
 import events
+import settings
 
 import pyglet
 
@@ -42,20 +43,22 @@ for textStrName in _TextStrings:
     buf = buf.replace('*', '\*')
     buf = buf.replace('(', '\(')
     buf = buf.replace(')', '\)')
-    buf = buf.replace('%s', '(\w+)')
-    buf = buf.replace('%d', '(\d+)')
+    buf = buf.replace('%s', '(.*)')
+    buf = buf.replace('%d', '(.*)')
 
     STRING_CACHE[textStrName] = buf
 
-
 class ClientSocketHandler(object):
 
-    def setNickname(self, matchObj):
-        print matchObj.groups()
-        events.fireEvent("ChangeNick", matchObj.groups()[0])
-
     TextFunctions = {
-        STRING_CACHE['TEXT_SET_NICK'] : setNickname,
+        STRING_CACHE['TEXT_SET_NICK'] : 'on_setNick',
+        STRING_CACHE['TEXT_YOUR_TURN'] : 'on_playerTurn',
+        STRING_CACHE['TEXT_PLAYER_STARTED_GAME'] : 'on_startGame',
+        STRING_CACHE['TEXT_CURRENT_GAMES'] : 'on_listGames',
+        STRING_CACHE['TEXT_JOIN_GAME'] : 'on_joinGame',
+        STRING_CACHE['TEXT_DATA'] : 'on_boardData',
+        STRING_CACHE['TEXT_PLAYER_NUMBER'] : 'on_playerSetup',
+        STRING_CACHE['TEXT_TILE_ROTATED'] : 'on_tileRotated',
     }
 
     def __init__(self, sock=None, blocking=True):
@@ -74,8 +77,10 @@ class ClientSocketHandler(object):
 
         self.IncomingQueue = []
 
-        if not self.blocking:
-            pyglet.clock.schedule(self.update)
+        self.settings = settings.GameSettings()
+        self.settings.client = self
+
+        pyglet.clock.schedule(self.update)
 
     def update(self, dt):
         self.handleNetwork()
@@ -91,12 +96,7 @@ class ClientSocketHandler(object):
             return
 
         if len(self._msgLenChunk) == CLIENT_CHUNK_LEN:
-            print CLIENT_CHUNK_LEN
-            print self._msgLenChunk
             try:
-                print '[' + self._msgChunk + ']'
-                print '[[' + self._msgLenChunk + ']]'
-
                 if len(self._msgChunk) < int(self._msgLenChunk):
                     self._msgChunk += \
                         self.sock.recv(int(self._msgLenChunk) -
@@ -105,46 +105,20 @@ class ClientSocketHandler(object):
             except socket.error, args:
                 return
 
-        print '[' + self._msgChunk + ']'
-        print '[[' + self._msgLenChunk + ']]'
-
         if self._msgChunk and len(self._msgChunk) == int(self._msgLenChunk):
             self.IncomingQueue.append(self._msgChunk)
             self._msgChunk = ''
             self._msgLenChunk = ''
 
-#            msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
-
-#            try:
-#                msgLenChunk = self.sock.recv(CLIENT_CHUNK_LEN)
-#                print '[' + msgLenChunk + ']'
-#                if len(msgLenChunk) == CLIENT_CHUNK_LEN:
-#                    msg = self.sock.recv(int(msgLenChunk))
-#                    if len(msg) == int(msgLenChunk):
-#                        print '[[' + msg + ']]'
-#                        return msg
-#                    else:
-#                        print 'partial message:'
-#                        print '[[' + msg + ']]'
-#            except socket.error, args:
-#                print args
-#                # XXX - 35 = resource temp unavailable
-#                if args[0] in [11, 35]:
-#                    print "socket busy"
-#                    if retry:
-#                        return self.receive(retry=True)
-#                    pass
-
     def consumeQueue(self):
         for count in range(len(self.IncomingQueue)):
             msg = self.IncomingQueue[count]
-            print msg
             if msg.startswith('***'):
                 for textStr in self.TextFunctions.keys():
-                    print '[[[' + textStr
                     mObj = re.match(textStr, msg)
                     if mObj:
-                        self.TextFunctions[textStr](self, mObj)
+                        events.fireEvent(self.TextFunctions[textStr],
+                                         mObj.groups())
 
         self.IncomingQueue = []
 
@@ -156,14 +130,12 @@ class ClientSocketHandler(object):
                 pass
 
     def send(self, msg):
-        print "msg = %s" % msg
         totalSent = 0
         while totalSent < len(msg):
             sent = self.sock.send(msg[totalSent:])
             if sent == 0:
                 raise RuntimeError, "socket connection broken"
 
-            print dir(self.sock)
             totalSent += sent
 
     def receive(self, retry=False):
@@ -185,34 +157,53 @@ class ClientBaseHandler(ClientSocketHandler):
 
         self.playerNumber = 0
 
+        events.addListener(self)
+
         self.connect(host, port)
         self.setNick(nick)
 
-        self.board = board.Board()
+        self.settings.board = board.Board()
         self.startLocation = (-1, -1)
 
+    def on_startGame(self, args):
+        playerNick = args[0]
+        print "!!! Game started by %s" % playerNick
+        self.send('/data')
+
     def setNick(self, nick):
-        print "nick = %s" % nick
         self.send('/nick %s\n' % nick)
-            #if self.blocking:
-            #    while True:
-            #        msg = self.receive()
 
-            #        if msg == server.TEXT_SET_NICK % nick:
-            #            print "Nick set to %s" % nick
-            #            self.nick = nick
-            #            return
-            #        elif msg == server.ERROR_EXISTING_NICK:
-            #            break
-            #    nick += str(count)
+    def on_setNick(self, args):
+        nick = args[0]
+        print "!!! Nick changed to %s" % nick
+        self.nick = nick
 
-            #print "Couldn't set nick!"
+    def on_listGames(self, args):
+        gamelist = args[0]
+        print "!!! Gamelist: %s" % gamelist
 
-    def joinGame(self, gameKey):
-        self.send('/join %s' % gameKey)
+        if not gamelist:
+            print "No games"
+            return
 
-        self.waitForMessage(server.TEXT_JOIN_GAME % gameKey)
-        print "Joined game %s" % gameKey
+        if self.settings.joinFirstGame:
+
+            for game in gamelist.split('\n'):
+                gameId, players = game.split()
+
+                self.send('/join %s' % gameId)
+                break
+
+    def on_joinGame(self, args):
+        gameNumber = args[0]
+        print "!!! Player joined game %s" % gameNumber
+
+    def joinFirstGame(self):
+        print "Join first game"
+
+        self.settings.joinFirstGame = True
+        self.send('/list')
+
 
     def getPlayerNumber(self):
         playerText = re.sub(r'\(', '\(', server.TEXT_PLAYER_NUMBER)
@@ -286,4 +277,6 @@ class ClientBaseHandler(ClientSocketHandler):
 
         self.waitForMessage(server.TEXT_PLAYER_ROTATED_TILE)
         print "rotated"
+
+
 
