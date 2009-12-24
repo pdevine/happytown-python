@@ -26,6 +26,10 @@ for img in TILE_IMAGES:
 OFFSET_X = 65
 OFFSET_Y = 55
 
+FLOATINGTILE_LOCATION = (800, 650)
+MOVE_SPEED = 100
+SNAP_SPEED = 700
+
 ROWS = 9
 COLUMNS = 12
 
@@ -51,8 +55,9 @@ class Tile(pyglet.sprite.Sprite):
 
         self.moveToX = x
         self.moveToY = y
-        self.moveSpeed = 100
+        self.moveSpeed = MOVE_SPEED
 
+        self.snapBack = False
         self.slowDown = True
 
         self.rotating = False
@@ -100,6 +105,8 @@ class Tile(pyglet.sprite.Sprite):
     def reset(self):
         self.x = self.moveToX
         self.y = self.moveToY
+        self.snapBack = False
+        self.moveSpeed = MOVE_SPEED
 
     def update(self, dt):
         if self.rotating:
@@ -123,21 +130,21 @@ class AnimateBoard(object):
         count = 0
         for tile in self.sprites:
             tile.x = 1024 + tile.x
-            tile.moveSpeed = 700
+            tile.moveSpeed = SNAP_SPEED
             self.movingTiles.append(tile)
 
     def pourIn(self):
         self.moving = True
         for tile in self.sprites:
             tile.y = 768 + tile.y + (self.rows - tile.row) * 60
-            tile.moveSpeed = 700
+            tile.moveSpeed = SNAP_SPEED
             self.movingTiles.append(tile)
 
     def fallOut(self):
         self.Moving = True
         for tile in self.sprites:
             tile.moveToY = -300
-            tile.moveSpeed = 700
+            tile.moveSpeed = SNAP_SPEED
             self.movingTiles.append(tile)
 
 class Board(AnimateBoard):
@@ -146,11 +153,15 @@ class Board(AnimateBoard):
         self.tileBatch = pyglet.graphics.Batch()
         self.sprites = []
 
+        self.dragTile = False
+
         self.moving = False
         self.movingTiles = []
 
         self.columns = columns
         self.rows = rows
+
+        self.playerTurn = False
 
         # make the colour dimmer if we're not running in a real game
         self.demo = demo
@@ -199,12 +210,29 @@ class Board(AnimateBoard):
                          batch=self.tileBatch))
 
         self.floatingTile = \
-            Tile(800, 650, -1, -1, color=(255, 255, 255),
+            Tile(FLOATINGTILE_LOCATION[0],
+                 FLOATINGTILE_LOCATION[1],
+                 -1, -1,
+                 color=(255, 255, 255),
                  tileType=gameBoard.floatingTile.tileType,
                  tileRotation=gameBoard.floatingTile.tileRotation,
                  batch=self.tileBatch)
 
-    def on_keyPressed(self, args):
+    def on_mousePress(self, args):
+        print "!!! button pressed"
+        x, y, button, modifiers = args
+        self.pickupFloatingTile(x, y)
+
+    def on_mouseRelease(self, args):
+        print "!!! button released"
+        x, y, button, modifiers = args
+        self.dropFloatingTile()
+
+    def on_mouseDrag(self, args):
+        x, y, dx, dy, buttons, modifiers = args
+        self.dragFloatingTile(x, y)
+
+    def on_keyPress(self, args):
         print "!!! key pressed"
         symbol, modifiers = args
         if symbol == key.RIGHT:
@@ -243,6 +271,32 @@ class Board(AnimateBoard):
 
     def on_playerTurn(self, args):
         print "!!! your turn"
+        self.playerTurn = True
+
+    def pickupFloatingTile(self, x, y):
+        if not self.playerTurn:
+            return
+
+        #print "(%d, %d) (%d, %d)" % (self.floatingTile.x, self.floatingTile.y, self.floatingTile.x + self.floatingTile.width, self.floatingTile.y + self.floatingTile.height)
+        if x >= self.floatingTile.x - self.floatingTile.width / 2 and \
+           x <= self.floatingTile.x + self.floatingTile.width / 2 and \
+           y >= self.floatingTile.y - self.floatingTile.height / 2 and \
+           y <= self.floatingTile.y + self.floatingTile.height / 2:
+            print "Hit tile!"
+            self.dragTile = True
+
+    def dropFloatingTile(self):
+        self.dragTile = False
+        self.floatingTile.moveToX = FLOATINGTILE_LOCATION[0]
+        self.floatingTile.moveToY = FLOATINGTILE_LOCATION[1]
+        self.floatingTile.moveSpeed = SNAP_SPEED
+        self.moving = True
+        self.movingTiles.append(self.floatingTile)
+
+    def dragFloatingTile(self, x, y):
+        if self.dragTile:
+            self.floatingTile.x = x
+            self.floatingTile.y = y
 
     def rotateTiles(self, direction=CLOCKWISE):
         for tile in self.sprites:
@@ -284,7 +338,6 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToX = tile.x + 81
                     tile.column += 1
-                    tile.moveSpeed = 100
 
             elif direction == board.WEST:
                 tile = self.movingTiles[-1]
@@ -304,8 +357,6 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToX = tile.x - 81
                     tile.column -= 1
-                    tile.moveSpeed = 100
-
 
         elif direction in [board.NORTH, board.SOUTH]:
             for tile in self.sprites:
@@ -333,7 +384,6 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToY = tile.y + 81
                     tile.row -= 1
-                    tile.moveSpeed = 100
 
             elif direction == board.SOUTH:
                 tile = self.movingTiles[0]
@@ -353,8 +403,6 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToY = tile.y - 81
                     tile.row += 1
-                    tile.moveSpeed = 100
-
 
     def update(self, dt):
         #if not self.movingTiles and self.color != self.fadeColor:
@@ -426,10 +474,7 @@ if __name__ == '__main__':
     b.pourIn()
     b.floatingTile.x = 800
     b.floatingTile.y = 650
-
-    #pyglet.clock.unschedule(b.update)
-
-    #pyglet.clock.schedule(b.update)
+    b.playerTurn = True
 
     @window.event
     def on_draw():
@@ -438,10 +483,16 @@ if __name__ == '__main__':
 
     @window.event
     def on_mouse_press(x, y, button, modifiers):
-        pass
+        print "(%d,%d)" % (x, y)
+        b.pickupFloatingTile(x, y)
 
     @window.event
     def on_mouse_release(x, y, button, modifiers):
+        b.dropFloatingTile()
+
+    @window.event
+    def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+        b.dragFloatingTile(x, y)
         pass
 
     @window.event

@@ -367,7 +367,7 @@ def moveRow(client, *args):
     except (board.BoardMovementError, board.GameOverError), msg:
         return "ERROR: %s\n" % str(msg)
 
-    notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
+    notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % (client.name, row, dir))
 
 
 def moveColumn(client, *args):
@@ -393,7 +393,7 @@ def moveColumn(client, *args):
     except(board.BoardMovementError, board.GameOverError), msg:
         return "ERROR: %s\n" % str(msg)
 
-    notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % client.name)
+    notifyPlayers(client, TEXT_PLAYER_PUSHED_TILE % (client.name, col, dir))
 
 
 def movePlayer(client, *args):

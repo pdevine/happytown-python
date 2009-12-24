@@ -99,28 +99,34 @@ def on_draw():
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
+    events.fireEvent('on_mousePress', (x, y, button, modifiers))
     #menu.mousePress(x, y, button, modifiers)
     pass
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
+    events.fireEvent('on_mouseRelease', (x, y, button, modifiers))
     #menu.mouseRelease(x, y, button, modifiers)
     pass
 
 @window.event
 def on_mouse_motion(x, y, dx, dy):
     #menu.mouseMotion(x, y, dx, dy)
-    pass
+    events.fireEvent('on_mouseMotion', (x, y, dx, dy))
+
+@window.event
+def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+    events.fireEvent('on_mouseDrag', (x, y, dx, dy, buttons, modifiers))
 
 @window.event
 def on_key_release(symbol, modifiers):
-    events.fireEvent('on_keyReleased', (symbol, modifiers))
+    events.fireEvent('on_keyReleas', (symbol, modifiers))
     #menu.keyRelease(symbol, modifiers)
     pass
 
 @window.event
 def on_key_press(symbol, modifiers):
-    events.fireEvent('on_keyPressed', (symbol, modifiers))
+    events.fireEvent('on_keyPress', (symbol, modifiers))
     #menu.keyPress(symbol, modifiers)
     #person.keyPress(symbol, modifiers)
     pass
