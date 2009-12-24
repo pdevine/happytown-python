@@ -1,9 +1,9 @@
 import sys
 import pyglet
 import random
-import board
 
 sys.path.append('..')
+import board
 import events
 import settings
 
@@ -55,26 +55,31 @@ class Tile(pyglet.sprite.Sprite):
 
         self.slowDown = True
 
-        self.rotateTo = (0, 0)
+        self.rotating = False
         self.rotation = tileRotation * 90
+        self.rotateTo = self.rotation
 
         self.color = color
 
 
     def rotate(self, direction):
-        print "[[ rotate tile ]]"
-        pyglet.clock.schedule(self.update)
+        if not self.rotating:
+            pyglet.clock.schedule(self.update)
+
+        self.rotating = True
 
         if direction == CLOCKWISE:
-            print "clockwise"
             if self.rotation + 90 >= 360:
                 self.rotation -= 360
-            self.rotateTo = (self.rotation + 90, CLOCKWISE)
+                self.rotateTo -= 270
+            else:
+                self.rotateTo += 90
         else:
-            print "anticlockwise"
             if self.rotation - 90 <= 0:
                 self.rotation += 360
-            self.rotateTo = (self.rotation - 90, ANTICLOCKWISE)
+                self.rotateTo += 270
+            else:
+                self.rotateTo -= 90
 
     def getPosition(self):
         return (self.x, self.y)
@@ -97,20 +102,19 @@ class Tile(pyglet.sprite.Sprite):
         self.y = self.moveToY
 
     def update(self, dt):
-        if self.rotateTo[1] == CLOCKWISE:
-            if self.rotation < self.rotateTo[0]:
-                self.rotation += self.rotationSpeed * dt
-            else:
-                self.rotation = self.rotateTo[0]
-                self.rotateTo = (0, 0)
+        if self.rotating:
+            #print "rotating"
+            if self.rotation < self.rotateTo:
+                self.rotation = min(self.rotationSpeed * dt + self.rotation,
+                                    self.rotateTo)
+            elif self.rotation > self.rotateTo:
+                self.rotation = max(self.rotation - self.rotationSpeed * dt,
+                                    self.rotateTo)
+
+            if self.rotation == self.rotateTo:
+                self.rotating = False
                 pyglet.clock.unschedule(self.update)
-        elif self.rotateTo[1] == ANTICLOCKWISE:
-            if self.rotation > self.rotateTo[0]:
-                self.rotation -= self.rotationSpeed * dt
-            else:
-                self.rotation = self.rotateTo[0]
-                self.rotateTo = (0, 0)
-                pyglet.clock.unschedule(self.update)
+
 
 class AnimateBoard(object):
     def slideIn(self):
@@ -206,7 +210,7 @@ class Board(AnimateBoard):
         if symbol == key.RIGHT:
             self.settings.client.send('/rotate clockwise')
         elif symbol == key.LEFT:
-            self.settings.client.send('/rotate anticlockwise')
+            self.settings.client.send('/rotate counterclockwise')
 
     def on_tileRotated(self, args):
         print "!!! tile rotated"
@@ -232,6 +236,10 @@ class Board(AnimateBoard):
         #self.fallOut()
 
         #self.settings.fallingTiles = True
+
+    def on_tilePushed(self, args):
+        nick, pos, direction = args
+        self.moveTiles(int(pos), int(direction))
 
     def on_playerTurn(self, args):
         print "!!! your turn"
@@ -277,7 +285,6 @@ class Board(AnimateBoard):
                     tile.moveToX = tile.x + 81
                     tile.column += 1
                     tile.moveSpeed = 100
-
 
             elif direction == board.WEST:
                 tile = self.movingTiles[-1]
@@ -350,20 +357,20 @@ class Board(AnimateBoard):
 
 
     def update(self, dt):
-        if not self.movingTiles and self.color != self.fadeColor:
-            colors = []
-            for count, val in enumerate(self.color):
-                if val > self.fadeColor[count]:
-                    colors.append(
-                        max(self.fadeColor[count], int(val - 10 * dt)))
-                else:
-                    colors.append(self.fadeColor[count])
-            self.color = tuple(colors)
-
-            for tile in self.sprites:
-                tile.color = self.color
-
-            self.floatingTile.color = self.color
+        #if not self.movingTiles and self.color != self.fadeColor:
+        #    colors = []
+        #    for count, val in enumerate(self.color):
+        #        if val > self.fadeColor[count]:
+        #            colors.append(
+        #                max(self.fadeColor[count], int(val - 10 * dt)))
+        #        else:
+        #            colors.append(self.fadeColor[count])
+        #    self.color = tuple(colors)
+        #
+        #    for tile in self.sprites:
+        #        tile.color = self.color
+        #
+        #    self.floatingTile.color = self.color
 
         if self.moving:
             for tile in self.movingTiles:
@@ -393,8 +400,8 @@ class Board(AnimateBoard):
                 tile.x += tile.velocityX
                 tile.y += tile.velocityY
 
-        if not self.movingTiles and self.settings.fallingTiles:
-            print "[[[ Tiles have fallen]]]"
+        if not self.movingTiles:
+            self.moving = False
 
         if self.demo and not self.movingTiles and self.color == self.fadeColor:
             self.moving = False
@@ -417,6 +424,8 @@ if __name__ == '__main__':
 
     b = Board(7, 7)
     b.pourIn()
+    b.floatingTile.x = 800
+    b.floatingTile.y = 650
 
     #pyglet.clock.unschedule(b.update)
 

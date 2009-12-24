@@ -59,6 +59,7 @@ class ClientSocketHandler(object):
         STRING_CACHE['TEXT_DATA'] : 'on_boardData',
         STRING_CACHE['TEXT_PLAYER_NUMBER'] : 'on_playerSetup',
         STRING_CACHE['TEXT_TILE_ROTATED'] : 'on_tileRotated',
+        STRING_CACHE['TEXT_PLAYER_PUSHED_TILE'] : 'on_tilePushed',
     }
 
     def __init__(self, sock=None, blocking=True):
