@@ -18,7 +18,7 @@ class AnimatedSprite(pyglet.sprite.Sprite):
                                       batch, group, usage)
 
         self._paused = False
-        self._range = (0, 1)
+        self.range = (0, 1)
 
     def _animate(self, dt):
         self._frame_index += 1

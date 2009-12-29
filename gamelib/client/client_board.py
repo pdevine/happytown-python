@@ -6,6 +6,8 @@ sys.path.append('..')
 import board
 import events
 import settings
+import character
+import traverse
 
 from pyglet.window import key
 
@@ -25,6 +27,9 @@ for img in TILE_IMAGES:
 
 OFFSET_X = 65
 OFFSET_Y = 55
+
+BOARD_OFFSET_X = 140
+BOARD_OFFSET_Y = 140
 
 FLOATINGTILE_LOCATION = (800, 650)
 MOVE_SPEED = 100
@@ -153,6 +158,8 @@ class Board(AnimateBoard):
         self.tileBatch = pyglet.graphics.Batch()
         self.sprites = []
 
+        self.people = []
+
         self.dragTile = False
 
         self.moving = False
@@ -170,10 +177,20 @@ class Board(AnimateBoard):
 
         self.settings = settings.GameSettings()
 
+        # XXX - fix me with something dynamic
+
+        offset_x = OFFSET_X
+        if columns == 7:
+            offset_x = BOARD_OFFSET_X
+
+        offset_y = OFFSET_Y
+        if rows == 7:
+            offset_y = BOARD_OFFSET_Y
+
         for y in range(rows):
             for x in range(columns):
-                self.sprites.append(Tile(x * 81 + OFFSET_X,
-                                         768 - (y * 81) - OFFSET_Y,
+                self.sprites.append(Tile(x * 81 + offset_x,
+                                         768 - (y * 81) - offset_y,
                                          x, y,
                                          color=self.color,
                                          tileType=random.randint(1, 3),
@@ -190,10 +207,16 @@ class Board(AnimateBoard):
 
         pyglet.clock.schedule(self.update)
 
+    def getTile(self, column, row):
+        for tile in self.sprites:
+            if tile.column == column and tile.row == row:
+                return tile
+
     def boardToSprites(self):
         gameBoard = self.settings.board
 
-        print gameBoard
+        self.rows = gameBoard.rows
+        self.columns = gameBoard.columns
 
         # is this going to gc correctly?
         self.sprites = []
@@ -201,8 +224,8 @@ class Board(AnimateBoard):
         for y in range(gameBoard.rows):
             for x in range(gameBoard.columns):
                 self.sprites.append(
-                    Tile(x * 81 + OFFSET_X,
-                         768 - (y * 81) - OFFSET_Y,
+                    Tile(x * 81 + BOARD_OFFSET_X,
+                         768 - (y * 81) - BOARD_OFFSET_Y,
                          x, y,
                          color=(255, 255, 255),
                          tileType=gameBoard.board[y][x].tileType,
@@ -218,6 +241,19 @@ class Board(AnimateBoard):
                  tileRotation=gameBoard.floatingTile.tileRotation,
                  batch=self.tileBatch)
 
+
+    # XXX - remove this later
+    def placePeople(self):
+        positions = [(0, 0), (self.columns-1, self.rows-1),
+                     (0, self.rows-1), (self.columns-1, 0)]
+
+        for count, person in enumerate(self.people):
+            pos = positions[count]
+            for tile in self.sprites:
+                if tile.row == pos[1] and tile.column == pos[0]:
+                    person.x = tile.x
+                    person.y = tile.y
+
     def on_mousePress(self, args):
         print "!!! button pressed"
         x, y, button, modifiers = args
@@ -226,7 +262,7 @@ class Board(AnimateBoard):
     def on_mouseRelease(self, args):
         print "!!! button released"
         x, y, button, modifiers = args
-        self.dropFloatingTile()
+        self.dropFloatingTile(x, y)
 
     def on_mouseDrag(self, args):
         x, y, dx, dy, buttons, modifiers = args
@@ -239,6 +275,10 @@ class Board(AnimateBoard):
             self.settings.client.send('/rotate clockwise')
         elif symbol == key.LEFT:
             self.settings.client.send('/rotate counterclockwise')
+        elif symbol == key.SPACE:
+            if self.playerTurn:
+                self.playerTurn = False
+                self.settings.client.send('/end')
 
     def on_tileRotated(self, args):
         print "!!! tile rotated"
@@ -273,19 +313,75 @@ class Board(AnimateBoard):
         print "!!! your turn"
         self.playerTurn = True
 
+    def _checkTileClicked(self, tile, x, y):
+        if x >= tile.x - tile.width / 2 and \
+           x <= tile.x + tile.width / 2 and \
+           y >= tile.y - tile.height / 2 and \
+           y <= tile.y + tile.height / 2:
+            return True
+        return False
+
+    def pathToCoords(self, movePath):
+        moveCoords = []
+        for column, row in movePath:
+            tile = self.getTile(column, row)
+            moveCoords.append((tile.x, tile.y))
+
+        return moveCoords
+
+    def checkTileClicked(self, x, y):
+        for tile in self.sprites:
+            if self._checkTileClicked(tile, x, y):
+                print "Clicked on %d, %d" % (tile.column, tile.row)
+
+                traverseGraph = traverse.TraversalGraph(self.settings.board)
+                startLocation = (0, 0)
+
+                movePath = traverseGraph.findPath(startLocation,
+                                          (tile.column, tile.row))
+                if movePath:
+                    # XXX - remove
+                    self.movePlayer(0, self.pathToCoords(movePath))
+                    print "Found path!"
+
+    def movePlayer(self, playerNum, moveSegments):
+        player = self.people[playerNum]
+        self.people[playerNum].walk(moveSegments)
+
     def pickupFloatingTile(self, x, y):
         if not self.playerTurn:
             return
 
-        #print "(%d, %d) (%d, %d)" % (self.floatingTile.x, self.floatingTile.y, self.floatingTile.x + self.floatingTile.width, self.floatingTile.y + self.floatingTile.height)
-        if x >= self.floatingTile.x - self.floatingTile.width / 2 and \
-           x <= self.floatingTile.x + self.floatingTile.width / 2 and \
-           y >= self.floatingTile.y - self.floatingTile.height / 2 and \
-           y <= self.floatingTile.y + self.floatingTile.height / 2:
-            print "Hit tile!"
+        if self._checkTileClicked(self.floatingTile, x, y):
             self.dragTile = True
 
-    def dropFloatingTile(self):
+    def dropFloatingTile(self, x, y):
+        for tile in self.sprites:
+            if tile.column == 0:
+                if tile.row > 0 and tile.row < self.rows - 1:
+                    if self._checkTileClicked(tile, x + 81, y):
+                        self.settings.client.send('/pushrow %d %d' %
+                                                  (tile.row, board.EAST))
+                        return
+            elif tile.column == self.columns - 1:
+                if tile.row > 0 and tile.row < self.rows - 1:
+                    if self._checkTileClicked(tile, x - 81, y):
+                        self.settings.client.send('/pushrow %d %d' %
+                                                  (tile.row, board.WEST))
+                        return
+            elif tile.row == 0:
+                if tile.column > 0 and tile.column < self.columns - 1:
+                    if self._checkTileClicked(tile, x, y - 81):
+                        self.settings.client.send('/pushcolumn %d %d' %
+                                                  (tile.column, board.SOUTH))
+                        return
+            elif tile.row == self.rows - 1:
+                if tile.column > 0 and tile.column < self.columns - 1:
+                    if self._checkTileClicked(tile, x, y + 81):
+                        self.settings.client.send('/pushcolumn %d %d' %
+                                                  (tile.column, board.NORTH))
+                        return
+
         self.dragTile = False
         self.floatingTile.moveToX = FLOATINGTILE_LOCATION[0]
         self.floatingTile.moveToY = FLOATINGTILE_LOCATION[1]
@@ -464,22 +560,41 @@ class Board(AnimateBoard):
 
     def draw(self):
         self.tileBatch.draw()
+        for player in self.people:
+            player.draw()
+
+class PlayerBox(pyglet.sprite.Sprite):
+    def __init__(self):
+        pyglet.sprite.Sprite.__init__
+        pass
 
 if __name__ == '__main__':
     from pyglet.window import key
 
     window = pyglet.window.Window(1024, 768)
 
+    fps_display = pyglet.clock.ClockDisplay()
+
     b = Board(7, 7)
-    b.pourIn()
+    #b.pourIn()
     b.floatingTile.x = 800
     b.floatingTile.y = 650
     b.playerTurn = True
+
+    b.settings.board = board.Board()
+    b.settings.board.createBoard(2)
+    b.people.append(character.Character())
+    b.people.append(character.Character())
+
+    b.boardToSprites()
+
+    b.placePeople()
 
     @window.event
     def on_draw():
         window.clear()
         b.draw()
+        fps_display.draw()
 
     @window.event
     def on_mouse_press(x, y, button, modifiers):
@@ -488,7 +603,8 @@ if __name__ == '__main__':
 
     @window.event
     def on_mouse_release(x, y, button, modifiers):
-        b.dropFloatingTile()
+        b.checkTileClicked(x, y)
+        b.dropFloatingTile(x, y)
 
     @window.event
     def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
@@ -504,7 +620,8 @@ if __name__ == '__main__':
             b.rotateTiles(ANTICLOCKWISE)
             print "left"
         elif symbol == key.SPACE:
-            b.demo = not b.demo
+            #b.demo = not b.demo
+            b.placePeople()
 
     @window.event
     def on_key_press(symbol, modifiers):

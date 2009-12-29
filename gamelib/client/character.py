@@ -1,6 +1,7 @@
 import pyglet
 import board
 
+from math import cos, sin, atan2, sqrt
 from pyglet.window import key
 from sprite import AnimatedSprite
 
@@ -9,28 +10,43 @@ class Character(AnimatedSprite):
         img = pyglet.image.load('../../data/person1.png')
         image_grid = pyglet.image.ImageGrid(img, 4, 4)
 
-        self.walking = True
-        self.direction = board.SOUTH
+        #self.direction = board.SOUTH
         self.frame_duration = 0.20
 
         AnimatedSprite.__init__(self,
             image_grid.get_animation(self.frame_duration))
 
-        self.walk_south()
+        self.moveSegments = []
+        self.currentSegment = 0
 
-    def walk_north(self):
+        self.walkSpeed = 100
+
+        #self.walkSouth()
+        #self.rest()
+
+    def walk(self, moveSegments):
+        assert moveSegments
+        self.currentSegment = 0
+        self.moveSegments = moveSegments
+
+        self.moveToX, self.moveToY = moveSegments[0]
+        self.walkSouth()
+
+        pyglet.clock.schedule(self.update)
+
+    def walkNorth(self):
         self.play()
         self.set_loop(0, 4)
 
-    def walk_east(self):
+    def walkEast(self):
         self.play()
         self.set_loop(4, 8)
 
-    def walk_west(self):
+    def walkWest(self):
         self.play()
         self.set_loop(8, 12)
 
-    def walk_south(self):
+    def walkSouth(self):
         self.play()
         self.set_loop(12, 16)
 
@@ -38,15 +54,50 @@ class Character(AnimatedSprite):
         self.set_frame(14)
         self.pause()
 
+    def update(self, dt):
+        opp = self.moveToX - self.x
+        adj = self.moveToY - self.y
+
+        rad = atan2(opp, adj)
+
+        self.x += self.walkSpeed * dt * sin(rad)
+        self.y += self.walkSpeed * dt * cos(rad)
+
+        distance = sqrt(pow(self.moveToX - self.x, 2) + \
+                        pow(self.moveToY - self.y, 2))
+
+        if distance <= 3:
+            self.currentSegment += 1
+            if self.currentSegment >= len(self.moveSegments):
+                self.x = self.moveToX
+                self.y = self.moveToY
+                print "finished!"
+                self.rest()
+                pyglet.clock.unschedule(self.update)
+                return
+            print "new segment"
+            self.oldMoveToX, self.oldMoveToY = (self.moveToX, self.moveToY)
+            self.moveToX, self.moveToY = self.moveSegments[self.currentSegment]
+
+            if self.moveToX > self.oldMoveToX:
+                self.walkEast()
+            elif self.moveToX < self.oldMoveToX:
+                self.walkWest()
+            elif self.moveToY > self.oldMoveToY:
+                self.walkNorth()
+            elif self.moveToY < self.oldMoveToY:
+                self.walkSouth()
+
+
     def keyPress(self, symbol, modifiers):
         if symbol == key.RIGHT:
-            self.walk_east()
+            self.walkEast()
         elif symbol == key.LEFT:
-            self.walk_west()
+            self.walkWest()
         elif symbol == key.UP:
-            self.walk_north()
+            self.walkNorth()
         elif symbol == key.DOWN:
-            self.walk_south()
+            self.walkSouth()
         elif symbol == key.SPACE:
             self.rest()
 
