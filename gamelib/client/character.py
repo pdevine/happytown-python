@@ -10,6 +10,9 @@ class Character(AnimatedSprite):
         img = pyglet.image.load('../../data/person1.png')
         image_grid = pyglet.image.ImageGrid(img, 4, 4)
 
+        self.moveToX = 0
+        self.moveToY = 0
+
         #self.direction = board.SOUTH
         self.frame_duration = 0.20
 
