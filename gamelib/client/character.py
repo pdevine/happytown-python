@@ -6,9 +6,12 @@ from pyglet.window import key
 from sprite import AnimatedSprite
 
 class Character(AnimatedSprite):
-    def __init__(self):
+    def __init__(self, column=-1, row=-1):
         img = pyglet.image.load('../../data/person1.png')
         image_grid = pyglet.image.ImageGrid(img, 4, 4)
+
+        self.column = column
+        self.row = row
 
         self.moveToX = 0
         self.moveToY = 0

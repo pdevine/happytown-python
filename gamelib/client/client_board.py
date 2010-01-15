@@ -62,7 +62,6 @@ class Tile(pyglet.sprite.Sprite):
         self.moveToY = y
         self.moveSpeed = MOVE_SPEED
 
-        self.snapBack = False
         self.slowDown = True
 
         self.rotating = False
@@ -110,7 +109,6 @@ class Tile(pyglet.sprite.Sprite):
     def reset(self):
         self.x = self.moveToX
         self.y = self.moveToY
-        self.snapBack = False
         self.moveSpeed = MOVE_SPEED
 
     def update(self, dt):
@@ -168,7 +166,7 @@ class Board(AnimateBoard):
         self.columns = columns
         self.rows = rows
 
-        self.playerTurn = False
+        self.ourTurn = False
 
         # make the colour dimmer if we're not running in a real game
         self.started = False
@@ -243,9 +241,9 @@ class Board(AnimateBoard):
                  batch=self.tileBatch)
 
         for player in self.settings.board.players:
-            location = player.getLocation()
-            playerSprite = character.Character()
-            tile = self.getTile(location[0], location[1])
+            column, row = player.getLocation()
+            playerSprite = character.Character(column, row)
+            tile = self.getTile(column, row)
 
             playerSprite.x, playerSprite.y = tile.xy
  
@@ -269,17 +267,21 @@ class Board(AnimateBoard):
         print "!!! button pressed"
         x, y, button, modifiers = args
         #self.checkTileClicked(x, y)
-        self.pickupFloatingTile(x, y)
+        if self.ourTurn:
+            self.pickupFloatingTile(x, y)
 
     def on_mouseRelease(self, args):
         print "!!! button released"
         x, y, button, modifiers = args
-        self.checkTileClicked(x, y)
-        self.dropFloatingTile(x, y)
+        if self.ourTurn:
+            self.checkTileClicked(x, y)
+            if self.dragTile:
+                self.dropFloatingTile(x, y)
 
     def on_mouseDrag(self, args):
         x, y, dx, dy, buttons, modifiers = args
-        self.dragFloatingTile(x, y)
+        if self.dragTile:
+            self.dragFloatingTile(x, y)
 
     def on_keyPress(self, args):
         print "!!! key pressed"
@@ -289,8 +291,8 @@ class Board(AnimateBoard):
         elif symbol == key.LEFT:
             self.settings.client.send('/rotate counterclockwise')
         elif symbol == key.SPACE:
-            if self.playerTurn:
-                self.playerTurn = False
+            if self.ourTurn:
+                self.ourTurn = False
                 self.settings.client.send('/end')
 
     def on_tileRotated(self, args):
@@ -326,7 +328,8 @@ class Board(AnimateBoard):
 
     def on_playerTurn(self, args):
         print "!!! your turn"
-        self.playerTurn = True
+        self.ourTurn = True
+        self.tilePushed = False
 
     def on_playerMoved(self, args):
         nick, column, row = args
@@ -345,6 +348,9 @@ class Board(AnimateBoard):
 
         movePath = traverseGraph.findPath(startLocation, (column, row))
         print movePath
+
+        self.people[playerNum].column = column
+        self.people[playerNum].row = row
 
         self.movePlayer(playerNum, self.pathToCoords(movePath))
 
@@ -391,7 +397,10 @@ class Board(AnimateBoard):
         self.people[playerNum].walk(moveSegments)
 
     def pickupFloatingTile(self, x, y):
-        if not self.playerTurn:
+        if not self.ourTurn:
+            return
+
+        if self.tilePushed:
             return
 
         if self.checkTileAtPoint(self.floatingTile, x, y):
@@ -449,6 +458,7 @@ class Board(AnimateBoard):
 
         self.moving = True
         self.movingTiles = []
+        self.tilePushed = True
 
         if direction in [board.EAST, board.WEST]:
             for tile in self.sprites:
@@ -481,6 +491,7 @@ class Board(AnimateBoard):
                     column, row = player.location
                     if row == pos:
                         self.people[count].moveToX += 81
+                        self.people[count].column += 1
 
             elif direction == board.WEST:
                 tile = self.movingTiles[-1]
@@ -502,9 +513,12 @@ class Board(AnimateBoard):
                     tile.column -= 1
 
                 for count, player in enumerate(self.settings.board.players):
+                    print player.location
+                    print pos
                     column, row = player.location
                     if row == pos:
                         self.people[count].moveToX -= 81
+                        self.people[count].column -= 1
 
         elif direction in [board.NORTH, board.SOUTH]:
             for tile in self.sprites:
@@ -533,6 +547,12 @@ class Board(AnimateBoard):
                     tile.moveToY = tile.y + 81
                     tile.row -= 1
 
+                for count, player in enumerate(self.settings.board.players):
+                    column, row = player.location
+                    if column == pos:
+                        self.people[count].moveToY -= 81
+                        self.people[count].row -= 1
+
             elif direction == board.SOUTH:
                 tile = self.movingTiles[0]
                 self.floatingTile.x = tile.x
@@ -551,6 +571,12 @@ class Board(AnimateBoard):
                 for tile in self.movingTiles:
                     tile.moveToY = tile.y - 81
                     tile.row += 1
+
+                for count, player in enumerate(self.settings.board.players):
+                    column, row = player.location
+                    if column == pos:
+                        self.people[count].moveToY -= 81
+                        self.people[count].row += 1
 
     def update(self, dt):
         #if not self.movingTiles and self.color != self.fadeColor:
@@ -596,13 +622,11 @@ class Board(AnimateBoard):
                 tile.x += tile.velocityX
                 tile.y += tile.velocityY
 
-                for person in self.people:
-                    if person.moveToX != person.x or \
-                       person.moveToY != person.y:
-                        if tile.moveToX == person.moveToX:
-                            person.x = tile.x
-                        if tile.moveToY == person.moveToY:
-                            person.y = tile.y
+                for count, person in enumerate(self.people):
+                    if tile.row == person.row and \
+                       tile.column == person.column:
+                        person.x = tile.x
+                        person.y = tile.y
 
         if not self.movingTiles:
             self.moving = False
@@ -623,6 +647,9 @@ class Board(AnimateBoard):
         for player in self.people:
             player.draw()
 
+        if self.dragTile:
+            self.floatingTile.draw()
+
 class PlayerBox(pyglet.sprite.Sprite):
     def __init__(self):
         pyglet.sprite.Sprite.__init__()
@@ -639,7 +666,7 @@ if __name__ == '__main__':
     #b.pourIn()
     b.floatingTile.x = 800
     b.floatingTile.y = 650
-    b.playerTurn = True
+    b.ourTurn = True
 
     b.settings.board = board.Board()
     b.settings.board.createBoard(2)
