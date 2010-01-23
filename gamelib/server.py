@@ -76,7 +76,9 @@ TEXT_PLAYER_CREATED_GAME = "*** %s has created new game %s\n"
 TEXT_PLAYER_PUSHED_TILE = "*** %s pushed the floating tile (%d, %d)\n"
 TEXT_PLAYER_MOVED = "*** %s moved to (%d, %d)\n"
 TEXT_PLAYER_ENDED_TURN = "*** %s ended the turn\n"
+TEXT_PLAYER_TURN = "*** It's %s's turn (player number %d)\n"
 TEXT_PLAYER_ROTATED_TILE = "*** You rotated the tile\n"
+TEXT_PLAYER_TOOK_OBJECT = "*** %s picked up an object\n"
 TEXT_TILE_ROTATED = "*** Floating tile rotated (%d)\n"
 TEXT_CURRENT_GAMES = "*** Current games\n%s"
 TEXT_DATA = "*** DATA %s"
@@ -421,16 +423,23 @@ def endTurn(client, *args):
 
     # XXX - notify if a board item was picked up
 
+    itemFound = False
+
     try:
-        client.game.board.endTurn(client.getPlayerNumber())
+        itemFound = client.game.board.endTurn(client.getPlayerNumber())
     except board.PlayerTurnError, msg:
         return "ERROR: %s\n" % str(msg)
+
+    if itemFound:
+        notifyPlayers(client, TEXT_PLAYER_TOOK_OBJECT % (client.name))
 
     if client.game.board.gameOver:
         notifyPlayers(client, TEXT_PLAYER_WON % client.name)
         return TEXT_YOU_WIN
     else:
         notifyPlayers(client, TEXT_PLAYER_ENDED_TURN % client.name)
+        #notifyPlayers(client, TEXT_PLAYER_TURN % (client.name,
+        #                                          client.game.board.playerTurn))
         notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
 
     return ''

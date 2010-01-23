@@ -435,10 +435,12 @@ class Board(object):
 
         # pick up an item if the player is on top of it
         boardItem = self.board[row][col].boardItem
+        itemFound = False
 
         if boardItem and boardItem in self.players[player-1].boardItems:
             boardItem.found = True
             self.board[row][col].boardItem = None
+            itemFound = True
 
         if player >= len(self.players):
             self.playerTurn = 1
@@ -446,6 +448,8 @@ class Board(object):
             self.playerTurn += 1
 
         self.floatingTilePushed = False
+
+        return itemFound
 
     def checkIfPlayerWon(self, player):
         playerWon = True

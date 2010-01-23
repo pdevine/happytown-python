@@ -38,7 +38,9 @@ OFFSET_Y = 55
 BOARD_OFFSET_X = 140
 BOARD_OFFSET_Y = 140
 
-FLOATINGTILE_LOCATION = (800, 650)
+FLOATINGTILE_LOCATION_X = 800
+FLOATINGTILE_LOCATION_Y = 650
+
 MOVE_SPEED = 100
 SNAP_SPEED = 700
 
@@ -133,9 +135,16 @@ class Tile(pyglet.sprite.Sprite):
         self.y = self.moveToY
         self.moveSpeed = MOVE_SPEED
 
+    def resetFloatingTile(self):
+        self.scale = 1
+        self.falling = False
+        self.moveToX = FLOATINGTILE_LOCATION_X
+        self.moveToY = FLOATINGTILE_LOCATION_Y
+        self.x = FLOATINGTILE_LOCATION_X
+        self.y = FLOATINGTILE_LOCATION_Y
+
     def update(self, dt):
         if self.rotating:
-            #print "rotating"
             if self.rotation < self.rotateTo:
                 self.rotation = min(self.rotationSpeed * dt + self.rotation,
                                     self.rotateTo)
@@ -267,8 +276,8 @@ class Board(AnimateBoard):
                               batch=self.tokenBatch))
 
         self.floatingTile = \
-            Tile(FLOATINGTILE_LOCATION[0],
-                 FLOATINGTILE_LOCATION[1],
+            Tile(FLOATINGTILE_LOCATION_X,
+                 FLOATINGTILE_LOCATION_Y,
                  -1, -1,
                  color=(255, 255, 255),
                  tileType=gameBoard.floatingTile.tileType,
@@ -337,6 +346,10 @@ class Board(AnimateBoard):
 
     def on_playerSetup(self, args):
         print "!!! player setup"
+        print args
+
+    def on_playerTookObject(self, args):
+        print "!!! player took object"
         print args
 
     def on_boardData(self, args):
@@ -447,32 +460,36 @@ class Board(AnimateBoard):
                     if self.checkTileAtPoint(tile, x + 81, y):
                         self.settings.client.send('/pushrow %d %d' %
                                                   (tile.row, board.EAST))
+                        self.dragTile = False 
                         return
             elif tile.column == self.columns - 1:
                 if tile.row > 0 and tile.row < self.rows - 1:
                     if self.checkTileAtPoint(tile, x - 81, y):
                         self.settings.client.send('/pushrow %d %d' %
                                                   (tile.row, board.WEST))
+                        self.dragTile = False 
                         return
             elif tile.row == 0:
                 if tile.column > 0 and tile.column < self.columns - 1:
                     if self.checkTileAtPoint(tile, x, y - 81):
                         self.settings.client.send('/pushcolumn %d %d' %
                                                   (tile.column, board.SOUTH))
+                        self.dragTile = False 
                         return
             elif tile.row == self.rows - 1:
                 if tile.column > 0 and tile.column < self.columns - 1:
                     if self.checkTileAtPoint(tile, x, y + 81):
                         self.settings.client.send('/pushcolumn %d %d' %
                                                   (tile.column, board.NORTH))
+                        self.dragTile = False 
                         return
 
         self.snapbackFloatingTile()
 
     def snapbackFloatingTile(self):
         self.dragTile = True
-        self.floatingTile.moveToX = FLOATINGTILE_LOCATION[0]
-        self.floatingTile.moveToY = FLOATINGTILE_LOCATION[1]
+        self.floatingTile.moveToX = FLOATINGTILE_LOCATION_X
+        self.floatingTile.moveToY = FLOATINGTILE_LOCATION_Y
         self.floatingTile.moveSpeed = SNAP_SPEED
         self.moving = True
         self.movingTiles.append(self.floatingTile)
@@ -490,8 +507,6 @@ class Board(AnimateBoard):
     def moveTiles(self, pos, direction):
         assert direction in [board.NORTH, board.EAST, board.SOUTH, board.WEST]
         assert self.moving == False
-
-        #self.moving = (direction, pos)
 
         self.moving = True
         self.movingTiles = []
@@ -598,6 +613,22 @@ class Board(AnimateBoard):
                         if hasattr(item, 'moveToY'):
                             item.moveToY = item.y - 81
 
+    def setItemOnTile(self, item):
+        if item.row == -1:
+            item.row = self.rows - 1
+        elif item.row == self.rows:
+            item.row = 0
+        elif item.column == -1:
+            item.column = self.columns - 1
+        elif item.column == self.columns:
+            item.column = 0
+        else:
+            pass
+
+        tile = self.getTile(item.column, item.row)
+        item.x = tile.x
+        item.y = tile.y
+
     def update(self, dt):
         #if not self.movingTiles and self.color != self.fadeColor:
         #    colors = []
@@ -624,22 +655,21 @@ class Board(AnimateBoard):
                 tile.velocityX = tile.moveSpeed * dt * sin(rad)
                 tile.velocityY = tile.moveSpeed * dt * cos(rad)
 
-                #tile.velocityX = tile.moveSpeed * dt * sin(tile.rotation)
-                #tile.velocityY = tile.moveSpeed * dt * cos(tile.rotation)
-
                 distance = sqrt(pow(tile.moveToX - tile.x, 2) + \
                                 pow(tile.moveToY - tile.y, 2))
 
                 if distance < 1:
-                    print "c=%d r=%d" % (tile.column, tile.row)
                     if tile == self.floatingTile:
-                        print "floater done"
-                        self.dragTile = False
-                        tile.falling = True
-                        #events.fireEvent('dropTile', 
-                        #newTile = self.getTile(self.columns-1, tile.row)
-                        #newTile
-                        pass
+                        if self.dragTile:
+                            self.dragTile = False
+                        else:
+                            tile.falling = True
+                            print "ft: c=%d r=%d" % (tile.column, tile.row)
+                            for item in self.tokens + self.people:
+                                print "c=%d r=%d" % (item.column, item.row)
+                                if item.row == tile.row and \
+                                   item.column == tile.column:
+                                    self.setItemOnTile(item)
                     tile.reset()
                     self.movingTiles.remove(tile)
                     continue
@@ -657,11 +687,11 @@ class Board(AnimateBoard):
                         item.x = tile.x
                         item.y = tile.y
 
+        # make the floating tile fall
         if self.floatingTile.falling:
             self.floatingTile.scale -= dt
             if self.floatingTile.scale <= 0:
-                self.floatingTile.scale = 1
-                self.floatingTile.falling = False
+                self.floatingTile.resetFloatingTile()
 
         if not self.movingTiles:
             self.moving = False
