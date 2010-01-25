@@ -27,8 +27,6 @@ for i in range(1, 13):
 
 for img in TILE_IMAGES + TOKEN_IMAGES:
     if img:
-        #img.anchor_x = 41
-        #img.anchor_y = 41
         img.anchor_x = int(img.width / 2)
         img.anchor_y = int(img.height / 2)
 
@@ -50,10 +48,39 @@ COLUMNS = 12
 CLOCKWISE = 1
 ANTICLOCKWISE = 2
 
+class PlayerBox(object):
+    def __init__(self, playerNum):
+        self.tokenBatch = pyglet.graphics.Batch()
+        self.tokens = []
+
+        self.x = 780
+        self.y = 560 - playerNum * 110
+
+        #self.addToken(0)
+        #self.addToken(1)
+        #self.addToken(2)
+
+    def addToken(self, number):
+        self.tokens.append(
+            Token(number,
+                self.x + 70 * len(self.tokens),
+                self.y,
+                batch=self.tokenBatch))
+
+        self.tokens[-1].setHighlight(False)
+
+    def update(self, dt):
+        pass
+
+    def draw(self):
+        self.tokenBatch.draw()
+
 class Token(pyglet.sprite.Sprite):
-    def __init__(self, number, x, y, column, row, batch=None):
+    def __init__(self, number, x, y, column=-1, row=-1, batch=None,
+                 highlight=True):
         print "number = %d" % number
         print TOKEN_IMAGES[number]
+        self.tokenId = number
 
         pyglet.sprite.Sprite.__init__(self, TOKEN_IMAGES[number], batch=batch)
 
@@ -62,6 +89,14 @@ class Token(pyglet.sprite.Sprite):
 
         self.column = column
         self.row = row
+
+        self.setHighlight(highlight)
+
+    def setHighlight(self, val):
+        if not val:
+            self.color = (255, 255, 255)
+        else:
+            self.color = (255, 170, 170)
 
 class Tile(pyglet.sprite.Sprite):
     def __init__(self, x, y, column, row, color=(255, 255, 255), tileType=1,
@@ -191,6 +226,8 @@ class Board(AnimateBoard):
         self.tokens = []
         self.people = []
 
+        self.playerBoxes = []
+
         self.dragTile = False
 
         self.moving = False
@@ -292,7 +329,13 @@ class Board(AnimateBoard):
             playerSprite.x, playerSprite.y = tile.xy
  
             self.people.append(playerSprite)
-            print player
+
+            self.playerBoxes.append(PlayerBox(player.playerNumber))
+
+            for item in player.boardItems:
+                self.playerBoxes[-1].addToken(item.itemNumber)
+                pass
+
 
     # XXX - remove this later
     def placePeople(self):
@@ -351,6 +394,20 @@ class Board(AnimateBoard):
     def on_playerTookObject(self, args):
         print "!!! player took object"
         print args
+        playerNum = self.settings.board.playerTurn - 1
+
+        player = self.people[playerNum]
+
+        for token in self.tokens:
+            if token.column == player.column and \
+               token.row == player.row:
+                tokenId = token.tokenId
+                for player in self.playerBoxes:
+                    for playerToken in player.tokens:
+                        if playerToken.tokenId == tokenId:
+                            playerToken.setHighlight(True)
+                self.tokens.remove(token)
+                break
 
     def on_boardData(self, args):
         boardData = args[0]
@@ -714,13 +771,11 @@ class Board(AnimateBoard):
         for player in self.people:
             player.draw()
 
+        for playerBox in self.playerBoxes:
+            playerBox.draw()
+
         if self.dragTile:
             self.floatingTile.draw()
-
-class PlayerBox(pyglet.sprite.Sprite):
-    def __init__(self):
-        pyglet.sprite.Sprite.__init__()
-        pass
 
 if __name__ == '__main__':
     from pyglet.window import key
