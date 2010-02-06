@@ -35,11 +35,11 @@ def consumeEvents(*args):
     global __eventQueue
 
     for count in range(len(__eventQueue)):
-        print '<<' + str(__eventQueue[count]) + '>>'
+        #print '<<' + str(__eventQueue[count]) + '>>'
         eventName, args, kwargs = __eventQueue[count]
         eventKeys = __listeners.keys()
 
-        print eventKeys
+        #print eventKeys
 
         for listener in eventKeys:
             try:

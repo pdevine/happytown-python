@@ -438,8 +438,8 @@ def endTurn(client, *args):
         return TEXT_YOU_WIN
     else:
         notifyPlayers(client, TEXT_PLAYER_ENDED_TURN % client.name)
-        #notifyPlayers(client, TEXT_PLAYER_TURN % (client.name,
-        #                                          client.game.board.playerTurn))
+        notifyPlayers(client, TEXT_PLAYER_TURN % (client.name,
+                                                  client.game.board.playerTurn))
         notifyPlayer(client, client.game.board.playerTurn, TEXT_YOUR_TURN)
 
     return ''

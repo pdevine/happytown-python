@@ -63,6 +63,7 @@ class ClientSocketHandler(object):
         STRING_CACHE['TEXT_PLAYER_ENDED_TURN'] : 'on_endTurn',
         STRING_CACHE['TEXT_PLAYER_MOVED'] : 'on_playerMoved',
         STRING_CACHE['TEXT_PLAYER_TOOK_OBJECT'] : 'on_playerTookObject',
+        STRING_CACHE['TEXT_PLAYER_TURN'] : 'on_turnChanged',
     }
 
     def __init__(self, sock=None, blocking=True):
