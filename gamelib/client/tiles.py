@@ -1,6 +1,10 @@
 import sys
 import pyglet
 
+import random
+
+from random import randint
+
 TILE_IMAGES = [
     '',
     pyglet.image.load('../../data/tile-i3.png'),
@@ -115,5 +119,78 @@ class Tile(pyglet.sprite.Sprite):
             if self.rotation == self.rotateTo:
                 self.rotating = False
                 pyglet.clock.unschedule(self.update)
+
+
+class Spark:
+    lifetimeRange = (150, 450)
+    colors = [(255, 0, 0), (255, 255, 100), (255, 255, 0), (10, 10, 10)]
+
+    def __init__(self, pos):
+        self.dead = False
+        self.color = random.choice(self.colors)
+
+        self.x, self.y = pos
+        self.lifetime = 0.01 * randint(*self.lifetimeRange)
+
+        self.velocityX = randint(-2, 2)
+        self.velocityY = randint(-3, 1)
+
+
+    def update(self, tick):
+        self.lifetime -= tick
+        if self.lifetime <= 0:
+            self.dead = True
+
+        self.x += self.velocityX
+        self.y += self.velocityY
+
+    def draw(self):
+        pyglet.gl.glColor3ub(*self.color)
+        pyglet.graphics.draw(2, pyglet.gl.GL_POINTS,
+                                ('v2i', (self.x, self.y, self.x+1, self.y)))
+
+class SparkManager:
+    def __init__(self, pos):
+        self.x, self.y = pos
+        self.sparks = []
+
+        self.sparkInterval = 0.20
+        self.sparkTimer = self.sparkInterval
+
+        pyglet.clock.schedule(self.update)
+
+    def update(self, tick):
+        self.sparkTimer -= tick
+
+        if self.sparkTimer <=0:
+            self.sparks.append(Spark((self.x, self.y)))
+            self.sparkTimer = self.sparkInterval
+
+        for spark in self.sparks:
+            spark.update(tick)
+
+            if spark.dead:
+                self.sparks.remove(spark)
+
+
+    def draw(self):
+        pyglet.gl.glPointSize(2.0)
+
+        for spark in self.sparks:
+            spark.draw()
+
+        pyglet.gl.glColor3ub(255, 255, 255)
+
+if __name__ == '__main__':
+    window = pyglet.window.Window(1024, 768)
+
+    sparks = SparkManager((100, 100))
+
+    @window.event
+    def on_draw():
+        window.clear()
+        sparks.draw()
+
+    pyglet.app.run()
 
 
