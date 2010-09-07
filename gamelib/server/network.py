@@ -233,13 +233,51 @@ class GameFactory(Factory):
 
 
     def startGame(self, proto, *args):
-        pass
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if proto.game.started:
+            return ERROR_GAME_STARTED
+
+        try:
+            proto.game.board.createBoard(proto.game.playerCount)
+        except board.BoardCreationError, err:
+            return ERROR_NEED_PLAYERS
+
+        proto.game.started = True
+
+        for count, player in enumerate(proto.game.players):
+            if player:
+                location = proto.game.board.players[count].location
+                player.transport.write(
+                    TEXT_PLAYER_NUMBER % \
+                        (count + 1, location[0], location[1]))
+
+        proto.game.players[proto.game.board.playerTurn-1].transport.write(
+            TEXT_YOUR_TURN)
 
     def leaveGame(self, proto, *args):
         pass
 
     def printBoard(self, proto, *args):
-        pass
+
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
+        asciiBoard = proto.game.board.asciiBoard()
+
+        rows = []
+        for count, row in enumerate(asciiBoard.split('\n')):
+            if row:
+                if count > 0:
+                    rows.append("    " + row)
+                else:
+                    rows.append(row)
+
+        return '\n'.join(rows) + '\r\n'
 
     def printFloatingTile(self, proto, *args):
         pass
