@@ -87,11 +87,20 @@ TEXT_USER_LIST = "*** Current players:\n%s\r\n"
 
 class GameProtocol(LineReceiver):
     def connectionMade(self):
+        '''incoming connection'''
+
         self.nick = NICK_UNKNOWN_NAME
         self.game = None
         self.factory.connections.append(self)
 
     def connectionLost(self, reason):
+        '''lost a connection'''
+
+        if self.game:
+            self.game.notifyPlayers(TEXT_PLAYER_LEFT_GAME % self.nick)
+            self.game.players.remove(self)
+            self.game = None
+
         if self.nick != NICK_UNKNOWN_NAME:
             self.factory.notifyAllPlayers(TEXT_PLAYER_DISCONNECTED % self.nick)
 
@@ -116,6 +125,9 @@ class GameProtocol(LineReceiver):
             else:
                 self.transport.write(ERROR_UNKNOWN_COMMAND % args[0])
 
+    def notifyPlayer(self, msg):
+        self.transport.write(msg)
+
 
 class GameFactory(Factory):
     protocol = GameProtocol
@@ -132,6 +144,10 @@ class GameFactory(Factory):
             '/board' : self.printBoard,
             '/ft' : self.printFloatingTile,
             '/items' : self.printItemsRemaining,
+            '/moverow' : self.pushRow,
+            '/movecolumn' : self.pushColumn,
+            '/movecol' : self.pushColumn,
+            '/end' : self.endTurn,
             '/quit' : self.quit,
         }
 
@@ -277,8 +293,13 @@ class GameFactory(Factory):
                     TEXT_PLAYER_NUMBER % \
                         (count + 1, location[0], location[1]))
 
-        proto.game.players[proto.game.board.playerTurn-1].transport.write(
-            TEXT_YOUR_TURN)
+        currentPlayer = proto.game.players[proto.game.board.playerTurn-1]
+
+        proto.game.notifyPlayers(
+                TEXT_PLAYER_TURN % (currentPlayer.nick,
+                                    proto.game.board.playerTurn))
+
+        currentPlayer.notifyPlayer(TEXT_YOUR_TURN)
 
     def leaveGame(self, proto, *args):
         '''leave a game which has been joined'''
@@ -315,7 +336,17 @@ class GameFactory(Factory):
         return proto.game.board.floatingTile.asciiTile() + '\r\n'
 
     def printItemsRemaining(self, proto, *args):
-        pass
+        '''print remaining items for this player'''
+
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
+        player = proto.game.getBoardPlayer(proto)
+        return player.getAsciiItemsRemaining() + '\r\n'
+
 
     def quit(self, proto, *args):
         '''disconnect from the server'''
@@ -325,6 +356,85 @@ class GameFactory(Factory):
             self.games[proto.game.gameKey].players.remove(proto)
 
         proto.transport.loseConnection()
+
+    def pushRow(self, proto, *args):
+        '''move a row of tiles'''
+
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
+        if len(args) != 2:
+            return ERROR_ROW_DIRECTION
+
+        try:
+            row = int(args[0])
+            dir = int(args[1])
+        except ValueError, e:
+            return ERROR_ROW_DIRECTION
+
+        try:
+            proto.game.board.moveRow(
+                proto.game.getPlayerNumber(proto), row, dir)
+        except (board.BoardMovementError, board.GameOverError), msg:
+            return "ERROR: %s\r\n" % str(msg)
+
+        proto.game.notifyPlayers(
+            TEXT_PLAYER_PUSHED_TILE % (proto.nick, row, dir))
+
+
+    def pushColumn(self, proto, *args):
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
+        if len(args) != 2:
+            return ERROR_ROW_DIRECTION
+
+        try:
+            col = int(args[0])
+            dir = int(args[1])
+        except ValueError, e:
+            return ERROR_ROW_DIRECTION
+
+        try:
+            proto.game.board.moveColumn(
+                proto.game.getPlayerNumber(proto), col, dir)
+        except (board.BoardMovementError, board.GameOverError), msg:
+            return "ERROR: %s\r\n" % str(msg)
+
+        proto.game.notifyPlayers(
+            TEXT_PLAYER_PUSHED_TILE % (proto.nick, col, dir))
+
+    def endTurn(self, proto, *args):
+        itemFound = False
+
+        try:
+            itemFound = \
+                proto.game.board.endTurn(proto.game.getPlayerNumber(proto))
+        except board.PlayerTurnError, msg:
+            return "ERROR: %s\n" % str(msg)
+
+        if itemFound:
+            proto.game.notifyPlayers(TEXT_PLAYER_TOOK_OBJECT % (proto.nick))
+
+        if proto.game.board.gameOver:
+            proto.game.notifyPlayers(TEXT_PLAYER_WON % proto.nick)
+            return TEXT_YOU_WIN
+        else:
+            proto.game.notifyPlayers(TEXT_PLAYER_ENDED_TURN % proto.nick)
+
+            currentPlayer = proto.game.players[proto.game.board.playerTurn-1]
+
+            proto.game.notifyPlayers(
+                TEXT_PLAYER_TURN % (currentPlayer.nick,
+                                    proto.game.board.playerTurn))
+
+            currentPlayer.notifyPlayer(TEXT_YOUR_TURN)
 
     def lookupNick(self, nick):
         '''lookup the protocol for a given nickname'''
@@ -376,6 +486,12 @@ class NetworkGame:
                 break
 
         return addedPlayer
+
+    def getPlayerNumber(self, proto):
+        return self.players.index(proto) + 1
+
+    def getBoardPlayer(self, proto):
+        return self.board.players[self.players.index(proto)]
 
     def notifyPlayers(self, msg, excludeProto=None):
         '''send a message to all players in a game'''
