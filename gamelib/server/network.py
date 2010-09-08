@@ -6,6 +6,7 @@ import string
 import hashlib
 import time
 import random
+import copy
 
 import sys
 sys.path.append('..')
@@ -81,7 +82,7 @@ TEXT_PLAYER_TOOK_OBJECT = "*** %s picked up an object\r\n"
 TEXT_TILE_ROTATED = "*** Floating tile rotated (%d)\r\n"
 TEXT_CURRENT_GAMES = "*** Current games\n%s\r\n"
 TEXT_DATA = "*** DATA %s\r\n"
-
+TEXT_USER_LIST = "*** Current players:\n%s\r\n"
 
 
 class GameProtocol(LineReceiver):
@@ -138,6 +139,8 @@ class GameFactory(Factory):
         self.games = {}
 
     def listGames(self, proto, *args):
+        '''list all current games'''
+
         buf = ''
         for gameKey in self.games.iterkeys():
             buf += "%s %d" % (gameKey, self.games[gameKey].playerCount)
@@ -148,9 +151,24 @@ class GameFactory(Factory):
         return TEXT_CURRENT_GAMES % buf
 
     def listUsers(self, proto, *args):
-        pass
+        players = copy.copy(self.connections)
+        players.sort(lambda x, y: cmp(x.nick, y.nick))
+
+        if not players:
+            return TEXT_USER_LIST % " No players"
+
+        buf = ''
+        for player in players:
+            if player.game:
+                buf += " %-14s : %s\n" % (player.nick, player.game.gameKey)
+            else:
+                buf += " %-14s : No Game\n" % player.nick
+
+        return TEXT_USER_LIST % buf
 
     def joinGame(self, proto, *args):
+        '''join a game which has already been created'''
+
         if proto.nick == NICK_UNKNOWN_NAME:
             return ERROR_UNKNOWN_NICK_CREATE
 
@@ -177,6 +195,8 @@ class GameFactory(Factory):
 
 
     def setNick(self, proto, *args):
+        '''set a nickname'''
+
         if not args:
             return ERROR_SPECIFY_NICK
         elif len(args) > 1:
@@ -213,6 +233,8 @@ class GameFactory(Factory):
         return TEXT_SET_NICK % newNick
 
     def newGame(self, proto, *args):
+        '''create a new game and join it'''
+
         if proto.nick == NICK_UNKNOWN_NAME:
             return ERROR_UNKNOWN_NICK_CREATE
 
@@ -233,6 +255,8 @@ class GameFactory(Factory):
 
 
     def startGame(self, proto, *args):
+        '''start a game which has been joined'''
+
         if not proto.game:
             return ERROR_JOIN_GAME
 
@@ -257,9 +281,19 @@ class GameFactory(Factory):
             TEXT_YOUR_TURN)
 
     def leaveGame(self, proto, *args):
-        pass
+        '''leave a game which has been joined'''
+
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        proto.game.notifyPlayers(TEXT_PLAYER_LEFT_GAME % proto.nick)
+        proto.game.players.remove(proto)
+        proto.game = None
+
+        # XXX - check to see if there are any players left in the game
 
     def printBoard(self, proto, *args):
+        '''print an ascii version of the game board'''
 
         if not proto.game:
             return ERROR_JOIN_GAME
@@ -267,25 +301,25 @@ class GameFactory(Factory):
         if not proto.game.started:
             return ERROR_START_GAME
 
-        asciiBoard = proto.game.board.asciiBoard()
-
-        rows = []
-        for count, row in enumerate(asciiBoard.split('\n')):
-            if row:
-                if count > 0:
-                    rows.append("    " + row)
-                else:
-                    rows.append(row)
-
-        return '\n'.join(rows) + '\r\n'
+        return proto.game.board.asciiBoard() + '\r\n'
 
     def printFloatingTile(self, proto, *args):
-        pass
+        '''print an ascii floating tile for the game'''
+
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
+        return proto.game.board.floatingTile.asciiTile() + '\r\n'
 
     def printItemsRemaining(self, proto, *args):
         pass
 
     def quit(self, proto, *args):
+        '''disconnect from the server'''
+
         # XXX - do something if the game has started
         if proto.game:
             self.games[proto.game.gameKey].players.remove(proto)
@@ -293,25 +327,33 @@ class GameFactory(Factory):
         proto.transport.loseConnection()
 
     def lookupNick(self, nick):
+        '''lookup the protocol for a given nickname'''
+
         for proto in self.connections:
             if proto.nick == nick:
                 return proto
         return None
 
     def notifyAllPlayers(self, msg, excludeProto=None):
+        '''send a message to all players connected to the server'''
+
         for proto in self.connections:
             if proto == excludeProto:
                 continue
             proto.transport.write(msg)
 
 class NetworkGame:
+    '''network container class for a game'''
+
     def __init__(self, gameKey):
         self.gameKey = gameKey
         self.players = [None, None, None, None]
         self.started = False
         self.board = board.Board()
 
-    def getPlayerCount(self):
+    @property
+    def playerCount(self):
+        '''number of players in the game'''
         count = 0
 
         for player in self.players:
@@ -320,9 +362,11 @@ class NetworkGame:
 
         return count
 
-    playerCount = property(getPlayerCount, None)
+    #playerCount = property(getPlayerCount, None)
 
     def addPlayer(self, proto):
+        '''add a player to the game'''
+
         addedPlayer = False
 
         for count, player in enumerate(self.players):
@@ -333,7 +377,17 @@ class NetworkGame:
 
         return addedPlayer
 
+    def notifyPlayers(self, msg, excludeProto=None):
+        '''send a message to all players in a game'''
+
+        for player in self.players:
+            if excludeProto == player:
+                continue
+            player.transport.write(msg)
+
 def createUniqueKey():
+    '''create a uuid for the game board'''
+
     return hashlib.new('md5',
         str(time.time()) + str(random.randint(0, 1000))).hexdigest()
 
