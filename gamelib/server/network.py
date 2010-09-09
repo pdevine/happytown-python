@@ -144,10 +144,12 @@ class GameFactory(Factory):
             '/board' : self.printBoard,
             '/ft' : self.printFloatingTile,
             '/items' : self.printItemsRemaining,
-            '/moverow' : self.pushRow,
-            '/movecolumn' : self.pushColumn,
-            '/movecol' : self.pushColumn,
+            '/pushrow' : self.pushRow,
+            '/pushcolumn' : self.pushColumn,
+            '/pushcol' : self.pushColumn,
+            '/move' : self.movePlayer,
             '/end' : self.endTurn,
+            '/rotate' : self.rotateFloatingTile,
             '/quit' : self.quit,
         }
 
@@ -410,7 +412,37 @@ class GameFactory(Factory):
         proto.game.notifyPlayers(
             TEXT_PLAYER_PUSHED_TILE % (proto.nick, col, dir))
 
+    def movePlayer(self, proto, *args):
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
+        if len(args) != 2:
+            return ERROR_COLUMN_ROW
+
+        try:
+            col = int(args[0])
+            row = int(args[1])
+        except ValueError:
+            return ERROR_COLUMN_ROW
+
+        try:
+            proto.game.board.movePlayer(
+                proto.game.getPlayerNumber(proto), col, row)
+        except (board.PlayerMovementError, board.GameOverError), msg:
+            return "ERROR: %s\r\n" % str(msg)
+
+        proto.game.notifyPlayers(TEXT_PLAYER_MOVED % (proto.nick, col, row))
+
     def endTurn(self, proto, *args):
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
         itemFound = False
 
         try:
@@ -436,6 +468,30 @@ class GameFactory(Factory):
 
             currentPlayer.notifyPlayer(TEXT_YOUR_TURN)
 
+    def rotateFloatingTile(self, proto, *args):
+        if not proto.game:
+            return ERROR_JOIN_GAME
+
+        if not proto.game.started:
+            return ERROR_START_GAME
+
+        if len(args) != 1:
+            return ERROR_ROTATE_DIRECTION
+
+        try:
+            if args[0].lower() in ['1', 'clockwise', 'clock']:
+                proto.game.board.rotateClockwise(
+                    proto.game.getPlayerNumber(proto))
+                proto.game.notifyPlayers(TEXT_TILE_ROTATED % 1)
+            elif args[0].lower() in ['2', 'counterclockwise', 'counter']:
+                proto.game.board.rotateCounterClockwise(
+                    proto.game.getPlayerNumber(proto))
+                proto.game.notifyPlayers(TEXT_TILE_ROTATED % 2)
+        except (board.BoardMovementError, board.GameOverError), msg:
+            return "ERROR: %s\n" % str(msg)
+
+        return TEXT_PLAYER_ROTATED_TILE
+
     def lookupNick(self, nick):
         '''lookup the protocol for a given nickname'''
 
@@ -451,6 +507,8 @@ class GameFactory(Factory):
             if proto == excludeProto:
                 continue
             proto.transport.write(msg)
+
+
 
 class NetworkGame:
     '''network container class for a game'''
