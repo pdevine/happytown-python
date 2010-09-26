@@ -76,11 +76,22 @@ class Sun:
         glRotated(radRotation, 0, 0, 1)
 
         pyglet.graphics.draw(12, GL_TRIANGLES,
-            ('v2i', (0, 0, -100, -800, 100, -800,
-                     0, 0, -100, 800, 100, 800,
-                     0, 0, 800, 100, 800, -100,
-                     0, 0, -800, 100, -800, -100)))
-        #self.sprite.draw()
+            ('v2i', (0, 0, -100, -900, 100, -900,
+                     0, 0, -100, 900, 100, 900,
+                     0, 0, 900, 100, 900, -100,
+                     0, 0, -900, 100, -900, -100)))
+
+        glRotated(-radRotation, 0, 0, 1)
+        glRotated(-radRotation, 0, 0, 1)
+
+        glColor4f(0.6, 0.6, 0.6, 0.2)
+
+        pyglet.graphics.draw(12, GL_TRIANGLES,
+            ('v2i', (0, 0, -100, -900, 100, -900,
+                     0, 0, -100, 900, 100, 900,
+                     0, 0, 900, 100, 900, -100,
+                     0, 0, -900, 100, -900, -100)))
+
 
         glTranslatef(-self.x, -self.y, 0)
         glPopMatrix()
@@ -92,6 +103,11 @@ class Sun:
         self.img.blit(0, 0)
         glTranslatef(-self.x, -self.y, 0)
         glPopMatrix()
+
+        glColor4f(0.01568, 0.78, 0.0784, 1)
+        pyglet.graphics.draw(6, GL_TRIANGLES,
+            ('v2i', (0, 0, 0, 300, 1024, 300,
+                     0, 0, 1024, 300, 1024, 0)))
 
 
 title = Title()
