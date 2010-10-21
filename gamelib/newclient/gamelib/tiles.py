@@ -1,39 +1,8 @@
 import pyglet
 from pyglet.gl import *
 
-win = pyglet.window.Window(width=1024, height=768)
-angle = 0.0
-
-def init():
-    glClearColor(0.56, 0.67, 0.77, 0.0)
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-
 CLOCKWISE = 0
 ANTICLOCKWISE = 1
-
-@win.event
-def on_resize(width, height):
-    if not height:
-        height = 1
-
-    glViewport(0, 0, width, height)
-
-    glMatrixMode(GL_PROJECTION)
-
-    if width <= height:
-        glOrtho(-100.0, 100.0,
-                -100.0 * height / width, 100.0 * height / width,
-                -100.0, 100.0)
-    else:
-        glOrtho(-100.0 * width / height, 100.0 * width / height,
-                -100.0, 100.0,
-                -100.0, 100.0)
-
-    glLoadIdentity()
-
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
-    return pyglet.event.EVENT_HANDLED
 
 class Tile(object):
     def __init__(self, x, y, rotation=0):
@@ -85,7 +54,6 @@ class Tile(object):
         glScalef(0.1, 0.1, 0.1)
         glTranslatef(self.x, self.y, 0)
         glRotatef(self.rotation, 0, 0, 1)
-        #glTranslatef(self.x, self.y, 0)
         self.vertices.draw(GL_QUADS)
         glPopMatrix()
 
@@ -339,55 +307,88 @@ class TileI(Tile):
             )
         )
 
-sel = 0
+if __name__ == '__main__':
 
-tiles = [
-    TileT(4, 4),
-    TileL(0, 4),
-    TileI(-4, 4),
-    TileT(4, 0),
-    TileI(0, 0),
-    TileL(-4, 0),
-    TileL(4, -4),
-    TileT(0, -4),
-    TileI(-4, -4)
-]
+    win = pyglet.window.Window(width=1024, height=768)
+    angle = 0.0
 
-@win.event
-def on_draw():
-    win.clear()
+    def init():
+        glClearColor(92/255.0, 172/255.0, 196/255.0, 0.0)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
-    glLoadIdentity()
+    @win.event
+    def on_resize(width, height):
+        if not height:
+            height = 1
 
-    glPolygonMode(GL_FRONT, GL_FILL)
-    glColor4f(1, 1, 1, 1)
+        glViewport(0, 0, width, height)
 
-    glRotatef(-30, 1, 0, 0)
-    [tile.draw() for tile in tiles]
+        glMatrixMode(GL_PROJECTION)
 
-@win.event
-def on_key_release(symbol, modifiers):
-    global sel
-    if symbol == pyglet.window.key.RIGHT:
-        tiles[sel].rotate(CLOCKWISE)
-    elif symbol == pyglet.window.key.LEFT:
-        tiles[sel].rotate(ANTICLOCKWISE)
-    elif symbol == pyglet.window.key.UP:
-        sel -= 1
-        if sel < 0:
-            sel = len(tiles) - 1
-    elif symbol == pyglet.window.key.DOWN:
-        sel += 1
-        if sel >= len(tiles):
-            sel = 0
+        if width <= height:
+            glOrtho(-100.0, 100.0,
+                    -100.0 * height / width, 100.0 * height / width,
+                    -100.0, 100.0)
+        else:
+            glOrtho(-100.0 * width / height, 100.0 * width / height,
+                    -100.0, 100.0,
+                    -100.0, 100.0)
+
+        glLoadIdentity()
+
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        return pyglet.event.EVENT_HANDLED
+
+    sel = 0
+
+    tiles = [
+        TileT(-4, 4),
+        TileL(0, 4),
+        TileI(4, 4),
+        TileT(4, 0),
+        TileI(0, 0),
+        TileL(-4, 0),
+        TileL(4, -4),
+        TileT(0, -4),
+        TileI(-4, -4)
+    ]
+
+    @win.event
+    def on_draw():
+        win.clear()
+
+        glLoadIdentity()
+
+        glPolygonMode(GL_FRONT, GL_FILL)
+        glColor4f(1, 1, 1, 1)
+
+        glRotatef(-30, 1, 0, 0)
+        [tile.draw() for tile in tiles]
+
+    @win.event
+    def on_key_release(symbol, modifiers):
+        global sel
+        if symbol == pyglet.window.key.RIGHT:
+            tiles[sel].rotate(CLOCKWISE)
+        elif symbol == pyglet.window.key.LEFT:
+            tiles[sel].rotate(ANTICLOCKWISE)
+        elif symbol == pyglet.window.key.UP:
+            sel -= 1
+            if sel < 0:
+                sel = len(tiles) - 1
+        elif symbol == pyglet.window.key.DOWN:
+            sel += 1
+            if sel >= len(tiles):
+                sel = 0
     
 
-def update(dt):
-    global angle
-    angle += 0.2
+    def update(dt):
+        global angle
+        angle += 0.2
 
-init()
+    init()
 
-pyglet.clock.schedule(update)
-pyglet.app.run()
+    pyglet.clock.schedule(update)
+    pyglet.app.run()
 

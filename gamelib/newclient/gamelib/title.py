@@ -2,15 +2,20 @@
 from math import sin, radians
 import pyglet
 import random
+import scene
 
 from pyglet.gl import *
 from pyglet import resource
 
-window = pyglet.window.Window(1024, 650)
+window = pyglet.window.Window(1024, 768)
 
-pyglet.font.add_file('fonts/LOKISD__.TTF')
+resource.path.append('../fonts/')
+resource.path.append('../res/')
+resource.reindex()
 
-class Title:
+resource.add_font('LOKISD__.TTF')
+
+class Title(scene.Scene):
     def __init__(self):
         offset = 50
         self.tick = 0
@@ -19,11 +24,9 @@ class Title:
         self.batch = pyglet.graphics.Batch()
 
         colors = [
-            (54, 171, 138, 255),
-            (63, 66, 51, 255),
-            (142, 179, 21, 255),
-            (202, 230, 46, 255),
-            (255, 85, 0, 255)
+            (252, 182, 83, 255),
+            (255, 82, 84, 255),
+            (206, 232, 121, 255)
         ]
 
         for letter in 'HAPPYTOWN':
@@ -57,7 +60,7 @@ class Sun:
     def __init__(self):
         self.x = 850
         self.y = 550
-        self.img = pyglet.image.load('sun.png')
+        self.img = resource.image('sun.png')
         self.img.anchor_x = self.img.width / 2
         self.img.anchor_y = self.img.height / 2
         self.rotation = 0
@@ -84,7 +87,8 @@ class Sun:
         glRotated(-radRotation, 0, 0, 1)
         glRotated(-radRotation, 0, 0, 1)
 
-        glColor4f(0.6, 0.6, 0.6, 0.2)
+        #glColor4f(0.6, 0.6, 0.6, 0.2)
+        glColor4f(0.7, 0.7, 0.7, 0.2)
 
         pyglet.graphics.draw(12, GL_TRIANGLES,
             ('v2i', (0, 0, -100, -900, 100, -900,
@@ -104,30 +108,31 @@ class Sun:
         glTranslatef(-self.x, -self.y, 0)
         glPopMatrix()
 
-        glColor4f(0.01568, 0.78, 0.0784, 1)
+        glColor4f(140/255.0, 209/255.0, 157/255.0, 1)
         pyglet.graphics.draw(6, GL_TRIANGLES,
             ('v2i', (0, 0, 0, 300, 1024, 300,
                      0, 0, 1024, 300, 1024, 0)))
 
+if __name__ == '__main__':
+    title = Title()
+    sun = Sun()
+    fps_display = pyglet.clock.ClockDisplay()
 
-title = Title()
-sun = Sun()
-fps_display = pyglet.clock.ClockDisplay()
+    def setup():
+        glClearColor(92/255.0, 172/255.0, 196/255.0, 0)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-def setup():
-    glClearColor(11/255.0, 126/255.0, 214/255.0, 1)
-    glEnable(GL_BLEND)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    @window.event
+    def on_draw():
+        glColor4f(1, 1, 1, 1)
+        window.clear()
+        sun.draw()
+        title.draw()
+        fps_display.draw()
 
-@window.event
-def on_draw():
-    window.clear()
-    sun.draw()
-    title.draw()
-    fps_display.draw()
+    setup()
 
-setup()
-
-pyglet.app.run()
+    pyglet.app.run()
 
 
