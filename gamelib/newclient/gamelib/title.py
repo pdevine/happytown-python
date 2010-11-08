@@ -45,6 +45,12 @@ class Title(scene.Scene):
             self.letters.append(letterImg)
             offset += letterImg.content_width
 
+        glClearColor(92/255.0, 172/255.0, 196/255.0, 0)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+        self.sun = Sun()
+
         pyglet.clock.schedule(self.update)
 
     def update(self, dt):
@@ -54,7 +60,18 @@ class Title(scene.Scene):
             letter.y = sin(self.tick * 3 + count) * 20 + letter.abs_y
 
     def draw(self):
+        self.sun.draw()
         self.batch.draw()
+
+    def on_key_press(self, symbol, modifiers):
+        print "keypress"
+        return pyglet.event.EVENT_HANDLED
+
+    def on_draw(self):
+        glColor4f(1, 1, 1, 1)
+        window.clear()
+        self.draw()
+        #return pyglet.event.EVENT_HANDLED
 
 class Sun:
     def __init__(self):
@@ -74,7 +91,7 @@ class Sun:
         radRotation = radians(self.rotation)
 
         glPushMatrix()
-        glColor4f(0.7, 0.7, 0.7, 0.2)
+        glColor4f(0.9, 0.9, 0.9, 0.2)
         glTranslatef(self.x, self.y, 0)
         glRotated(radRotation, 0, 0, 1)
 
@@ -115,23 +132,13 @@ class Sun:
 
 if __name__ == '__main__':
     title = Title()
-    sun = Sun()
     fps_display = pyglet.clock.ClockDisplay()
-
-    def setup():
-        glClearColor(92/255.0, 172/255.0, 196/255.0, 0)
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
     @window.event
     def on_draw():
-        glColor4f(1, 1, 1, 1)
-        window.clear()
-        sun.draw()
-        title.draw()
         fps_display.draw()
 
-    setup()
+    window.push_handlers(title)
 
     pyglet.app.run()
 
