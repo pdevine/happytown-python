@@ -17,6 +17,10 @@ EAST = 2
 SOUTH = 4
 WEST = 8
 
+POS_START= 0
+POS_END = 1
+
+
 class TileManager(object):
     def __init__(self, rows, columns, tileScale=BOARD_SMALL):
         self.rows = rows
@@ -67,25 +71,65 @@ class TileManager(object):
             self.movingTiles.sort(lambda tile1, tile2: cmp(tile1.x, tile2.x))
 
             if direction == EAST:
-                tile = self.movingTiles[0]
-                self.floatingTile.x = tile.x - Tile.width
-                self.floatingTile.y = tile.y
-                self.floatingTile.moveToX = tile.x
-                self.floatingTile.moveToY = tile.y
+                self.setMoveTilePositions(
+                    self.movingTiles[0], -Tile.width, 0, POS_START)
+            elif direction == WEST:
+                self.setMoveTilePositions(
+                    self.movingTiles[-1], Tile.width, 0, POS_END)
 
-                self.movingTiles.insert(0, self.floatingTile)
-                self.tiles.append(self.floatingTile)
+        elif direction in [NORTH, SOUTH]:
+            for tile in self.tiles:
+                if self.rowPositions.index(tile.x) == position:
+                    self.movingTiles.append(tile)
 
-                self.floatingTile = self.movingTiles[-1]
-                self.tiles.remove(self.floatingTile)
+            self.movingTiles.sort(lambda tile1, tile2: cmp(tile2.y, tile1.y))
 
-                for tile in self.movingTiles:
-                    tile.moveToX = tile.x + Tile.width
+            if direction == NORTH:
+                self.setMoveTilePositions(
+                    self.movingTiles[-1], 0, -Tile.height, POS_END)
+            elif direction == SOUTH:
+                self.setMoveTilePositions(
+                    self.movingTiles[0], 0, Tile.height, POS_START)
 
-            pyglet.clock.schedule(self.update)
+        pyglet.clock.schedule(self.update)
+
+    def setMoveTilePositions(self, tile, xOffset, yOffset, position):
+        self.floatingTile.x = tile.x + xOffset
+        self.floatingTile.y = tile.y + yOffset
+        self.floatingTile.moveToX = tile.x
+        self.floatingTile.moveToY = tile.y
+
+        if position == POS_START:
+            self.movingTiles.insert(0, self.floatingTile)
+        else:
+            self.movingTiles.append(self.floatingTile)
+
+        self.tiles.append(self.floatingTile)
+
+        if position == POS_START:
+            self.floatingTile = self.movingTiles[-1]
+        else:
+            self.floatingTile = self.movingTiles[0]
+
+        self.tiles.remove(self.floatingTile)
+
+        for tile in self.movingTiles:
+            tile.moveToX = tile.x - xOffset
+            tile.moveToY = tile.y - yOffset
 
     def on_mouse_release(self, x, y, button, modifiers):
         glLoadIdentity()
+
+        gluLookAt(0, -6, 12,
+                 0, 50, -100.0,
+                 0, 1, 0)
+
+        glScalef(0.1, 0.1, 0.1)
+
+        z = (GLfloat * 1)(0)
+        glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, z)
+
+        print "%f %f %f" % (x, y, z[0])
 
         model = (GLdouble * 16)()
         projection = (GLdouble * 16)()
@@ -99,12 +143,12 @@ class TileManager(object):
         objY = GLdouble()
         objZ = GLdouble()
 
-        gluUnProject(x, y, 10.0, model, projection, viewport, objX, objY, objZ)
+        gluUnProject(x, y, z[0], model, projection, viewport, objX, objY, objZ)
 
-        pointX = objX.value * 1 / self.scale
-        pointY = objY.value * 1 / self.scale
+        pointX = objX.value
+        pointY = objY.value
 
-        print "(%f, %f, %f)" % (objX.value * 1 / self.scale, objY.value * 1 / self.scale, objZ.value)
+        print "(%f, %f, %f)" % (objX.value, objY.value, objZ.value)
 
         for tile in self.tiles:
             if tile.collidePoint(pointX, pointY):
@@ -135,7 +179,7 @@ class TileManager(object):
                 elif distance < 0.75:
                     braking = log(distance + 10, 10) - 1
                     deltaX *= braking * 30
-                    deltaY *= braking * 10
+                    deltaY *= braking * 30
 
                 tile.x += deltaX
                 tile.y += deltaY 
@@ -488,7 +532,7 @@ if __name__ == '__main__':
         glLoadIdentity()
 
         #glFrustum(-1.0, 1.0, -1.0, 1.0, 1.0, 1000.0)
-        glOrtho(-1.0, 1.0, -1.0, 1.0, 1.0, 1000.0)
+        glOrtho(-1.0, 1.0, -1.0, 1.0, 1.0, 100.0)
 
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
@@ -525,12 +569,13 @@ if __name__ == '__main__':
 
         if symbol == pyglet.window.key.RIGHT:
             tiles.moveTiles(1, EAST)
+        elif symbol == pyglet.window.key.LEFT:
+            tiles.moveTiles(2, WEST)
+        elif symbol == pyglet.window.key.UP:
+            tiles.moveTiles(1, NORTH)
+        elif symbol == pyglet.window.key.DOWN:
+            tiles.moveTiles(2, SOUTH)
 
-#        if symbol == pyglet.window.key.RIGHT:
-#            tiles[sel].rotate(CLOCKWISE)
-#        elif symbol == pyglet.window.key.LEFT:
-#            tiles[sel].rotate(ANTICLOCKWISE)
-#        elif symbol == pyglet.window.key.UP:
 #            sel -= 1
 #            if sel < 0:
 #                sel = len(tiles) - 1
