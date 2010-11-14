@@ -7,10 +7,10 @@ from math import sin, cos, radians, atan2, sqrt, log
 CLOCKWISE = 0
 ANTICLOCKWISE = 1
 
-BOARD_SMALL = 0.2
-BOARD_MEDIUM = 0.06
-BOARD_LARGE = 0.055
-BOARD_HUGE = 0.03
+BOARD_SMALL = (0.09, 0.09, 0.09)
+BOARD_MEDIUM = (0.06, 0.06, 0.06)
+BOARD_LARGE = (0.055, 0.055, 0.055)
+BOARD_HUGE = (0.03, 0.03, 0.03)
 
 NORTH = 1
 EAST = 2
@@ -28,9 +28,11 @@ class TileManager(object):
 
         self.scale = tileScale
 
-        self.moving = False
+        self.dragTile = False
+        self.ourTurn = True
 
         self.tiles = []
+        self.movingTiles = []
 
         startX = columns * Tile.width / 2
         startY = rows * Tile.height / 2
@@ -55,11 +57,17 @@ class TileManager(object):
             tileType(-100, -100, tileScale, random.randint(0, 3))
 
     def moveTiles(self, position, direction):
-        assert direction in [NORTH, EAST, SOUTH, WEST]
-        assert self.moving == False
+        '''
+            push the floating tile and move a column or row
 
-        self.moving = True
-        self.movingTiles = []
+            position    row or column to move
+            direction   direction to move in [NORTH, EAST, SOUTH, WEST]
+
+        '''
+
+        assert direction in [NORTH, EAST, SOUTH, WEST]
+        assert len(self.movingTiles) == 0
+
         self.tilePushed = True
 
         if direction in [EAST, WEST]:
@@ -94,6 +102,16 @@ class TileManager(object):
         pyglet.clock.schedule(self.update)
 
     def setMoveTilePositions(self, tile, xOffset, yOffset, position):
+        '''
+            set the floating tile and build up an array of tiles
+            to be moved
+
+            tile        tile next to where the floating tile is being pushed
+            xOffset     x offset next to the floating tile
+            yOffset     y offset next to the floating tile
+            position    row or column to push
+
+        '''
         self.floatingTile.x = tile.x + xOffset
         self.floatingTile.y = tile.y + yOffset
         self.floatingTile.moveToX = tile.x
@@ -117,19 +135,20 @@ class TileManager(object):
             tile.moveToX = tile.x - xOffset
             tile.moveToY = tile.y - yOffset
 
-    def on_mouse_release(self, x, y, button, modifiers):
+    def getWorldPointAtWindowPoint(self, x, y):
+        '''
+            return world coordinates for a given window point
+        '''
         glLoadIdentity()
 
         gluLookAt(0, -6, 12,
-                 0, 50, -100.0,
-                 0, 1, 0)
+                  0, 50, -100.0,
+                  0,  1, 0)
 
-        glScalef(0.1, 0.1, 0.1)
+        glScalef(*self.scale)
 
         z = (GLfloat * 1)(0)
         glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, z)
-
-        print "%f %f %f" % (x, y, z[0])
 
         model = (GLdouble * 16)()
         projection = (GLdouble * 16)()
@@ -148,41 +167,97 @@ class TileManager(object):
         pointX = objX.value
         pointY = objY.value
 
-        print "(%f, %f, %f)" % (objX.value, objY.value, objZ.value)
+        return (objX.value, objY.value, objZ.value)
 
+    def getTileAtColumnRow(self, column, row):
+        '''return a tile at a board position'''
+        return self.getTileAtPoint(
+            self.columnPositions[column],
+            self.rowPositions[row])
+
+    def getTileAtPoint(self, x, y):
+        '''return a tile at world point'''
         for tile in self.tiles:
-            if tile.collidePoint(pointX, pointY):
-                print tile
-                break
+            if tile.collidePoint(x, y):
+                return tile
+        return None
 
-        print "release!"
+    def pickupFloatingTile(self, x, y):
+        '''pick up floating tile at world point'''
+        if self.floatingTile.collidePoint(x, y):
+            self.dragTile = True
+
+    def dropFloatingTile(self, x, y):
+        '''drop the floating tile'''
+
+        # TODO - add board movement
+
+        self.movingTiles.append(self.floatingTile)
+        self.floatingTile.moveToX = 10
+        self.floatingTile.moveToY = 10
+        self.floatingTile.moveSpeed = 20
+        pyglet.clock.schedule(self.update)
+
+    def pathToCoords(self, movePath):
+        '''
+            convert a list of board coordinate tuples to world coordinate tuples
+
+            movePath    list of board coordinate (column, row) tuples
+
+        '''
+        moveCoords = []
+        for column, row in movePath:
+            tile = self.getTileAtColumnRow(column, row)
+            assert tile
+            moveCoords.append((tile.x, tile.y))
+
+        return moveCoords
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        if self.ourTurn:
+            wx, wy, wz = self.getWorldPointAtWindowPoint(x, y)
+            self.pickupFloatingTile(wx, wy)
+
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        if self.dragTile:
+            wx, wy, wz = self.getWorldPointAtWindowPoint(x, y)
+            self.floatingTile.x = wx
+            self.floatingTile.y = wy
+
+    def on_mouse_release(self, x, y, button, modifiers):
+        if self.ourTurn:
+            wx, wy, wz = self.getWorldPointAtWindowPoint(x, y)
+            tile = self.getTileAtPoint(wx, wy)
+            if self.dragTile:
+                self.dropFloatingTile(wx, wy)
+        print tile
 
     def update(self, dt):
-        if self.moving:
-            for tile in self.movingTiles:
-                opp = tile.moveToX - tile.x
-                adj = tile.moveToY - tile.y
+        for tile in self.movingTiles:
+            opp = tile.moveToX - tile.x
+            adj = tile.moveToY - tile.y
 
-                rad = atan2(opp, adj)
+            rad = atan2(opp, adj)
 
-                deltaX = tile.moveSpeed * dt * sin(rad)
-                deltaY = tile.moveSpeed * dt * cos(rad)
+            deltaX = tile.moveSpeed * dt * sin(rad)
+            deltaY = tile.moveSpeed * dt * cos(rad)
 
-                distance = sqrt((tile.moveToX - tile.x) ** 2 +
-                                (tile.moveToY - tile.y) ** 2)
+            distance = sqrt((tile.moveToX - tile.x) ** 2 +
+                            (tile.moveToY - tile.y) ** 2)
 
-                if distance <= 0.05:
-                    tile.x = tile.moveToX
-                    tile.y = tile.moveToY
-                    self.movingTiles.remove(tile)
-                    continue
-                elif distance < 0.75:
-                    braking = log(distance + 10, 10) - 1
-                    deltaX *= braking * 30
-                    deltaY *= braking * 30
+            if distance <= 0.05:
+                tile.x = tile.moveToX
+                tile.y = tile.moveToY
+                tile.moveSpeed = 1.5
+                self.movingTiles.remove(tile)
+                continue
+            elif distance < 0.75:
+                braking = log(distance + 10, 10) - 1
+                deltaX *= braking * 30
+                deltaY *= braking * 30
 
-                tile.x += deltaX
-                tile.y += deltaY 
+            tile.x += deltaX
+            tile.y += deltaY 
 
         if not self.movingTiles:
             self.moving = False
@@ -201,6 +276,7 @@ class Tile(object):
     def __init__(self, x, y, scale=BOARD_MEDIUM, rotation=0):
         self.x = x
         self.y = y
+        self.z = 0
 
         self.moveToX = self.x
         self.moveToY = self.y
@@ -256,8 +332,7 @@ class Tile(object):
 
     def draw(self):
         glPushMatrix()
-        #glScalef(self.scale, self.scale, self.scale)
-        glTranslatef(self.x, self.y, 0)
+        glTranslatef(self.x, self.y, self.z)
         glRotatef(self.rotation, 0, 0, 1)
         self.vertices.draw(GL_QUADS)
         glPopMatrix()
@@ -554,7 +629,7 @@ if __name__ == '__main__':
                  0, 50, -100.0,
                  0, 1, 0)
 
-        glScalef(0.1, 0.1, 0.1)
+        glScalef(*tiles.scale)
 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glColor4f(1, 1, 1, 1)
@@ -566,11 +641,14 @@ if __name__ == '__main__':
 
     @win.event
     def on_key_release(symbol, modifiers):
+        print tiles.getTileAtColumnRow(1, 0)
 
         if symbol == pyglet.window.key.RIGHT:
-            tiles.moveTiles(1, EAST)
+            #tiles.moveTiles(1, EAST)
+            tiles.floatingTile.rotate(CLOCKWISE)
         elif symbol == pyglet.window.key.LEFT:
-            tiles.moveTiles(2, WEST)
+            #tiles.moveTiles(2, WEST)
+            tiles.floatingTile.rotate(ANTICLOCKWISE)
         elif symbol == pyglet.window.key.UP:
             tiles.moveTiles(1, NORTH)
         elif symbol == pyglet.window.key.DOWN:
